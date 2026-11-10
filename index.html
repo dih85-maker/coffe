@@ -1,990 +1,1058 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Coffee, 
-  Timer as TimerIcon, 
-  History, 
-  Plus, 
-  ChevronRight, 
-  ChevronLeft,
-  Play, 
-  Square,
-  Check,
-  PlusCircle,
-  MinusCircle,
-  Flame,
-  Droplets,
-  Sliders,
-  Download,
-  Upload,
-  Mail,
-  Sparkles,
-  Volume2
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Coffee Dial-in Pro</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM (v18 Production) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel Standalone -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { 
+            background-color: #171717; 
+            color: #f5f5f5; 
+            -webkit-tap-highlight-color: transparent; 
+            font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+            user-select: none;
+        }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 24px); }
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-// Sound alerts using Web Audio API
-const playBeep = (freq = 880, duration = 0.12, type = 'sine') => {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, ctx.currentTime);
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + duration);
-  } catch (e) {}
-};
-
-const playChime = () => {
-  playBeep(523.25, 0.1);
-  setTimeout(() => playBeep(659.25, 0.1), 100);
-  setTimeout(() => playBeep(783.99, 0.25), 200);
-};
-
-// --- Data Models & Constants with Dynamic Roast Dynamics ---
-const ROAST_LEVELS = [
-  { 
-    id: 'dark', 
-    label: '강배전', 
-    temp: '86~88℃', 
-    bloomSec: 25, 
-    a2Esp: 32, a2Drip: 42, m40Esp: 26, m40Drip: 44,
-    note: '저온수로 잡미와 쓴맛을 억제하고 깔끔한 초콜릿 풍미 추출'
-  },
-  { 
-    id: 'med-dark', 
-    label: '중강배전', 
-    temp: '88~90℃', 
-    bloomSec: 30, 
-    a2Esp: 30, a2Drip: 40, m40Esp: 25, m40Drip: 42,
-    note: '묵직한 바디감과 고소한 견과 밸런스'
-  },
-  { 
-    id: 'medium', 
-    label: '중배전', 
-    temp: '90~92℃', 
-    bloomSec: 30, 
-    a2Esp: 29, a2Drip: 38, m40Esp: 23, m40Drip: 40,
-    note: '풍부한 단맛과 부드러운 산미의 균형'
-  },
-  { 
-    id: 'med-light', 
-    label: '중약배전', 
-    temp: '92~93℃', 
-    bloomSec: 35, 
-    a2Esp: 28, a2Drip: 36, m40Esp: 21, m40Drip: 37,
-    note: '과일 아로마와 은은한 산미를 극대화'
-  },
-  { 
-    id: 'light', 
-    label: '약배전', 
-    temp: '93~95℃', 
-    bloomSec: 40, 
-    a2Esp: 27, a2Drip: 34, m40Esp: 19, m40Drip: 33,
-    note: '초고온수와 미세 분쇄로 조직을 완전히 열어 꽃향기와 산미 추출'
-  },
-];
-
-const INITIAL_BEANS = [
-  { id: 'b1', name: '폴 바셋 (시그니처)', roast: 'dark' },
-  { id: 'b2', name: '블루보틀 볼드', roast: 'med-dark' },
-  { id: 'b3', name: '블루보틀 에스프레소', roast: 'medium' },
-  { id: 'b4', name: '블루보틀 밸런스', roast: 'med-light' },
-  { id: 'b5', name: '블루보틀 브라이트', roast: 'light' },
-];
-
-const GRINDERS = [
-  { id: 'a2', name: '페모북 A2 (M8 개조)' },
-  { id: 'm40', name: '미스치프 M40 (RC)' }
-];
-
-const getDynamicRecipes = (roastId) => {
-  const r = ROAST_LEVELS.find(lvl => lvl.id === roastId) || ROAST_LEVELS[2];
-  return {
-    golden: [
-      { label: "1차 뜸들이기", target: "40g", hint: `스위치 열림(V60) | 40g 붓고 ${r.bloomSec}초 뜸들이기` },
-      { label: "뜸 대기", target: `${r.bloomSec}초`, hint: `${r.bloomSec}초 동안 원두 조직 열기` },
-      { label: "2차 주수", target: "120g", hint: "120g까지 부드럽게 중심에서 나선형 주수" },
-      { label: "3차 주수", target: "200g", hint: "200g까지 부은 후 스며들기 대기" },
-      { label: "배수 완료", target: "완료", hint: "물이 모두 빠지면 완료 버튼 누르기" }
-    ],
-    hybrid: [
-      { label: "1차 투과(향미)", target: "60g", hint: "스위치 열림(OPEN) | 60g 주수로 화사한 향미 추출" },
-      { label: "뜸 대기", target: "35초", hint: "35초 도달 시 스위치 밸브 닫기(CLOSE) 준비" },
-      { label: "스위치 닫기 & 주수", target: "200g", hint: "스위치 닫고(CLOSE) 200g까지 부어 단맛 침출" },
-      { label: "침출 대기", target: "1분 30초", hint: "1분 30초에 스위치를 열어(OPEN) 배수 시작" },
-      { label: "배수 완료", target: "완료", hint: "배수 완료 시 버튼 누르기" }
-    ],
-    immersion: [
-      { label: "스위치 닫고 전량 주수", target: "200g", hint: "스위치 닫힘(CLOSE) 확인 후 200g 빠르게 주수" },
-      { label: "침출 대기", target: r.id === 'dark' ? "1분 45초" : "2분 15초", hint: `단맛 우려내기 (목표: ${r.id === 'dark' ? "1분 45초" : "2분 15초"})` },
-      { label: "스위치 개방", target: "스위치 ON", hint: "스위치 레버를 눌러 시원하게 배수 시작" },
-      { label: "배수 완료", target: "완료", hint: "물이 모두 빠지면 버튼 누르기" }
-    ]
-  };
-};
-
-export default function App() {
-  const [activeTab, setActiveTab] = useState('brew');
-  
-  const [beans, setBeans] = useState(() => {
-    try {
-      const saved = localStorage.getItem('dialin-beans');
-      return saved ? JSON.parse(saved) : INITIAL_BEANS;
-    } catch (e) { return INITIAL_BEANS; }
-  });
-  const [history, setHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('dialin-history');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) { return []; }
-  });
-  const [recommendations, setRecommendations] = useState(() => {
-    try {
-      const saved = localStorage.getItem('dialin-recs');
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) { return {}; }
-  });
-
-  useEffect(() => { 
-    try { localStorage.setItem('dialin-beans', JSON.stringify(beans)); } catch (e) {} 
-  }, [beans]);
-  
-  useEffect(() => { 
-    try { localStorage.setItem('dialin-history', JSON.stringify(history)); } catch (e) {} 
-  }, [history]);
-  
-  useEffect(() => { 
-    try { localStorage.setItem('dialin-recs', JSON.stringify(recommendations)); } catch (e) {} 
-  }, [recommendations]);
-
-  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
-
-  return (
-    <div className="min-h-screen bg-neutral-900 text-neutral-100 font-sans flex flex-col">
-      <header className="bg-neutral-950 p-4 border-b border-neutral-800 flex justify-between items-center sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <Coffee className="text-amber-500" />
-          <h1 className="text-lg font-bold tracking-wide">Dial-in Pro</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] text-amber-500 font-mono font-bold tracking-wider">v1.4.0 Pro</span>
-            <span className="text-[10px] text-neutral-400">{today}</span>
-          </div>
-          <button 
-            onClick={() => setActiveTab('settings')} 
-            className={`p-2 rounded-lg border transition-colors ${activeTab === 'settings' ? 'bg-amber-600 border-amber-500 text-white' : 'bg-neutral-800 border-neutral-700 text-neutral-300'}`}
-            title="백업 및 설정"
+    <script type="text/babel">
+        // 1. 순수 SVG 아이콘 컴포넌트 (외부 라이브러리 충돌 및 React Error #130 원천 방지)
+        const Icon = ({ size = 20, className = "", children, ...props }) => (
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width={size} 
+            height={size} 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            className={className} 
+            {...props}
           >
-            <Download size={18} />
-          </button>
-        </div>
-      </header>
+            {children}
+          </svg>
+        );
 
-      <main className="flex-1 overflow-y-auto p-4 pb-24">
-        {activeTab === 'brew' && (
-          <BrewWizard 
-            beans={beans} 
-            setBeans={setBeans}
-            recommendations={recommendations}
-            setRecommendations={setRecommendations}
-            onSaveLog={(log) => {
-              setHistory([log, ...history]);
-              setActiveTab('history');
-            }}
-          />
-        )}
-        {activeTab === 'recs' && (
-          <RecsTab beans={beans} recommendations={recommendations} />
-        )}
-        {activeTab === 'history' && (
-          <HistoryTab history={history} />
-        )}
-        {activeTab === 'settings' && (
-          <SettingsTab 
-            beans={beans} 
-            history={history} 
-            recommendations={recommendations}
-            onRestore={(data) => {
-              if (data.beans) setBeans(data.beans);
-              if (data.history) setHistory(data.history);
-              if (data.recommendations) setRecommendations(data.recommendations);
-              alert('데이터를 성공적으로 복원했습니다!');
-            }}
-          />
-        )}
-      </main>
+        const Coffee = (p) => <Icon {...p}><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="1" y2="4"/></Icon>;
+        const TimerIcon = (p) => <Icon {...p}><line x1="10" y1="2" x2="14" y2="2"/><line x1="12" y1="14" x2="15" y2="11"/><circle cx="12" cy="14" r="8"/></Icon>;
+        const HistoryIcon = (p) => <Icon {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></Icon>;
+        const Plus = (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Icon>;
+        const ChevronRight = (p) => <Icon {...p}><polyline points="9 18 15 12 9 6"/></Icon>;
+        const ChevronLeft = (p) => <Icon {...p}><polyline points="15 18 9 12 15 6"/></Icon>;
+        const Play = (p) => <Icon {...p}><polygon points="5 3 19 12 5 21 5 3"/></Icon>;
+        const Square = (p) => <Icon {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></Icon>;
+        const Check = (p) => <Icon {...p}><polyline points="20 6 9 17 4 12"/></Icon>;
+        const PlusCircle = (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></Icon>;
+        const MinusCircle = (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></Icon>;
+        const Flame = (p) => <Icon {...p}><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></Icon>;
+        const Droplets = (p) => <Icon {...p}><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/></Icon>;
+        const Sliders = (p) => <Icon {...p}><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></Icon>;
+        const Download = (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></Icon>;
+        const Upload = (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></Icon>;
+        const Mail = (p) => <Icon {...p}><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></Icon>;
+        const Sparkles = (p) => <Icon {...p}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></Icon>;
+        const Volume2 = (p) => <Icon {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></Icon>;
 
-      <nav className="bg-neutral-950 border-t border-neutral-800 fixed bottom-0 w-full flex justify-around p-3 pb-safe z-10">
-        <button onClick={() => setActiveTab('brew')} className={`flex flex-col items-center gap-1 w-20 ${activeTab === 'brew' ? 'text-amber-500' : 'text-neutral-500'}`}>
-          <TimerIcon size={24} /><span className="text-xs font-medium">추출</span>
-        </button>
-        <button onClick={() => setActiveTab('recs')} className={`flex flex-col items-center gap-1 w-20 ${activeTab === 'recs' ? 'text-amber-500' : 'text-neutral-500'}`}>
-          <Sliders size={24} /><span className="text-xs font-medium">추천값</span>
-        </button>
-        <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 w-20 ${activeTab === 'history' ? 'text-amber-500' : 'text-neutral-500'}`}>
-          <History size={24} /><span className="text-xs font-medium">기록</span>
-        </button>
-        <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 w-20 ${activeTab === 'settings' ? 'text-amber-500' : 'text-neutral-500'}`}>
-          <Download size={24} /><span className="text-xs font-medium">백업/설정</span>
-        </button>
-      </nav>
-    </div>
-  );
-}
+        // 2. Web Audio API 사운드 알림 (외부 사운드 파일 없이 브라우저 자체 합성 비프음)
+        const playBeep = (freq = 880, duration = 0.12, type = 'sine') => {
+          try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + duration);
+          } catch (e) {}
+        };
 
-function BrewWizard({ beans, setBeans, recommendations, setRecommendations, onSaveLog }) {
-  const [step, setStep] = useState(1);
-  const [method, setMethod] = useState('');
-  const [beanId, setBeanId] = useState('');
-  const [grinderId, setGrinderId] = useState('');
-  const [dripRecipeType, setDripRecipeType] = useState('golden');
-  const [dripTargets, setDripTargets] = useState([]);
-  const [time, setTime] = useState(0);
-  const [adjustedTime, setAdjustedTime] = useState(0);
-  const [recommendedClick, setRecommendedClick] = useState(0);
-  const [usedClick, setUsedClick] = useState(0);
-  const [lapTimes, setLapTimes] = useState([]);
-  const [tasteFeedback, setTasteFeedback] = useState('good');
+        const playChime = () => {
+          playBeep(523.25, 0.1);
+          setTimeout(() => playBeep(659.25, 0.1), 100);
+          setTimeout(() => playBeep(783.99, 0.25), 200);
+        };
 
-  const selectedBean = beans.find(b => b.id === beanId);
-  const selectedRoast = ROAST_LEVELS.find(r => r.id === selectedBean?.roast) || ROAST_LEVELS[2];
+        // 3. 배전도별 동적 프로필 (수온, 뜸시간, 권장 클릭수)
+        const ROAST_LEVELS = [
+          { 
+            id: 'dark', 
+            label: '강배전', 
+            temp: '86~88℃', 
+            bloomSec: 25, 
+            a2Esp: 32, a2Drip: 42, m40Esp: 26, m40Drip: 44,
+            note: '저온수로 잡미와 쓴맛을 억제하고 다크초콜릿 풍미 추출'
+          },
+          { 
+            id: 'med-dark', 
+            label: '중강배전', 
+            temp: '88~90℃', 
+            bloomSec: 30, 
+            a2Esp: 30, a2Drip: 40, m40Esp: 25, m40Drip: 42,
+            note: '묵직한 바디감과 고소한 견과 밸런스'
+          },
+          { 
+            id: 'medium', 
+            label: '중배전', 
+            temp: '90~92℃', 
+            bloomSec: 30, 
+            a2Esp: 29, a2Drip: 38, m40Esp: 23, m40Drip: 40,
+            note: '풍부한 단맛과 부드러운 산미의 균형'
+          },
+          { 
+            id: 'med-light', 
+            label: '중약배전', 
+            temp: '92~93℃', 
+            bloomSec: 35, 
+            a2Esp: 28, a2Drip: 36, m40Esp: 21, m40Drip: 37,
+            note: '과일 아로마와 은은한 산미 극대화'
+          },
+          { 
+            id: 'light', 
+            label: '약배전', 
+            temp: '93~95℃', 
+            bloomSec: 40, 
+            a2Esp: 27, a2Drip: 34, m40Esp: 19, m40Drip: 33,
+            note: '초고온수와 미세 분쇄로 꽃향기와 산미 완벽 추출'
+          },
+        ];
 
-  const getDefaultClick = (bId, mthd, gId) => {
-    const bean = beans.find(b => b.id === bId);
-    if (!bean) return 0;
-    const roastData = ROAST_LEVELS.find(r => r.id === bean.roast);
-    if (!roastData) return 0;
-    return mthd === 'espresso' ? (gId === 'a2' ? roastData.a2Esp : roastData.m40Esp) : (gId === 'a2' ? roastData.a2Drip : roastData.m40Drip);
-  };
+        const INITIAL_BEANS = [
+          { id: 'b1', name: '폴 바셋 (시그니처)', roast: 'dark' },
+          { id: 'b2', name: '블루보틀 볼드', roast: 'med-dark' },
+          { id: 'b3', name: '블루보틀 에스프레소', roast: 'medium' },
+          { id: 'b4', name: '블루보틀 밸런스', roast: 'med-light' },
+          { id: 'b5', name: '블루보틀 브라이트', roast: 'light' },
+        ];
 
-  const handleNextStep = () => {
-    if (step === 3 && method === 'espresso') setStep(5);
-    else setStep(s => s + 1);
-  };
-  
-  const handlePrevStep = () => {
-    if (step === 5 && method === 'espresso') setStep(3);
-    else setStep(s => Math.max(1, s - 1));
-  };
+        const GRINDERS = [
+          { id: 'a2', name: '페모북 A2 (M8 개조)' },
+          { id: 'm40', name: '미스치프 M40 (RC)' }
+        ];
 
-  if (step === 1) return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-bold text-white mb-6">어떤 커피를 내리실 건가요?</h2>
-      <div className="grid grid-cols-2 gap-4">
-        <SelectionCard title="에스프레소" subtitle="밤비노 플러스 (18g)" icon={<Coffee size={32} />} selected={method === 'espresso'} onClick={() => { setMethod('espresso'); handleNextStep(); }} />
-        <SelectionCard title="드립 (하리오 스위치)" subtitle="13g 맞춤 브루잉" icon={<TimerIcon size={32} />} selected={method === 'drip'} onClick={() => { setMethod('drip'); handleNextStep(); }} />
-      </div>
-    </div>
-  );
+        const getDynamicRecipes = (roastId) => {
+          const r = ROAST_LEVELS.find(lvl => lvl.id === roastId) || ROAST_LEVELS[2];
+          return {
+            golden: [
+              { label: "1차 뜸들이기", target: "40g", hint: `스위치 열림(V60) | 40g 붓고 ${r.bloomSec}초 뜸들이기` },
+              { label: "뜸 대기", target: `${r.bloomSec}초`, hint: `${r.bloomSec}초 동안 원두 조직 열기` },
+              { label: "2차 주수", target: "120g", hint: "120g까지 부드럽게 중심에서 나선형 주수" },
+              { label: "3차 주수", target: "200g", hint: "200g까지 부은 후 스며들기 대기" },
+              { label: "배수 완료", target: "완료", hint: "물이 모두 빠지면 완료 버튼 누르기" }
+            ],
+            hybrid: [
+              { label: "1차 투과(향미)", target: "60g", hint: "스위치 열림(OPEN) | 60g 주수로 화사한 향미 추출" },
+              { label: "뜸 대기", target: "35초", hint: "35초 도달 시 스위치 밸브 닫기(CLOSE) 준비" },
+              { label: "스위치 닫기 & 주수", target: "200g", hint: "스위치 닫고(CLOSE) 200g까지 부어 단맛 침출" },
+              { label: "침출 대기", target: "1분 30초", hint: "1분 30초에 스위치를 열어(OPEN) 배수 시작" },
+              { label: "배수 완료", target: "완료", hint: "배수 완료 시 버튼 누르기" }
+            ],
+            immersion: [
+              { label: "스위치 닫고 전량 주수", target: "200g", hint: "스위치 닫힘(CLOSE) 확인 후 200g 빠르게 주수" },
+              { label: "침출 대기", target: r.id === 'dark' ? "1분 45초" : "2분 15초", hint: `단맛 우려내기 (목표: ${r.id === 'dark' ? "1분 45초" : "2분 15초"})` },
+              { label: "스위치 개방", target: "스위치 ON", hint: "스위치 레버를 눌러 시원하게 배수 시작" },
+              { label: "배수 완료", target: "완료", hint: "물이 모두 빠지면 버튼 누르기" }
+            ]
+          };
+        };
 
-  if (step === 2) return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-4">
-        <button onClick={handlePrevStep} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
-        <h2 className="text-xl font-bold text-white">원두를 선택하세요</h2>
-      </div>
-      <div className="space-y-3">
-        {beans.map(bean => {
-          const r = ROAST_LEVELS.find(lvl => lvl.id === bean.roast);
+        // 4. 메인 App 컴포넌트
+        function App() {
+          const [activeTab, setActiveTab] = React.useState('brew');
+          
+          const [beans, setBeans] = React.useState(() => {
+            try {
+              const saved = localStorage.getItem('dialin-beans');
+              return saved ? JSON.parse(saved) : INITIAL_BEANS;
+            } catch (e) { return INITIAL_BEANS; }
+          });
+          const [history, setHistory] = React.useState(() => {
+            try {
+              const saved = localStorage.getItem('dialin-history');
+              return saved ? JSON.parse(saved) : [];
+            } catch (e) { return []; }
+          });
+          const [recommendations, setRecommendations] = React.useState(() => {
+            try {
+              const saved = localStorage.getItem('dialin-recs');
+              return saved ? JSON.parse(saved) : {};
+            } catch (e) { return {}; }
+          });
+
+          React.useEffect(() => { 
+            try { localStorage.setItem('dialin-beans', JSON.stringify(beans)); } catch (e) {} 
+          }, [beans]);
+          
+          React.useEffect(() => { 
+            try { localStorage.setItem('dialin-history', JSON.stringify(history)); } catch (e) {} 
+          }, [history]);
+          
+          React.useEffect(() => { 
+            try { localStorage.setItem('dialin-recs', JSON.stringify(recommendations)); } catch (e) {} 
+          }, [recommendations]);
+
+          const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+
           return (
-            <div key={bean.id} onClick={() => { setBeanId(bean.id); handleNextStep(); }} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-amber-500/50">
-              <div>
+            <div className="min-h-screen bg-neutral-900 text-neutral-100 font-sans flex flex-col">
+              {/* 상단 헤더 */}
+              <header className="bg-neutral-950 p-4 border-b border-neutral-800 flex justify-between items-center sticky top-0 z-10">
                 <div className="flex items-center gap-2">
-                  <p className="font-semibold text-white text-lg">{bean.name}</p>
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-neutral-700 text-amber-400 font-bold">{r?.label}</span>
+                  <Coffee className="text-amber-500" />
+                  <h1 className="text-lg font-bold tracking-wide">Dial-in Pro</h1>
                 </div>
-                <p className="text-xs text-neutral-400 mt-1">권장 수온: <span className="text-neutral-300 font-mono font-bold">{r?.temp}</span></p>
-              </div>
-              <ChevronRight className="text-neutral-500" />
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-amber-500 font-mono font-bold tracking-wider">v1.4.0 Pro</span>
+                    <span className="text-[10px] text-neutral-400">{today}</span>
+                  </div>
+                  <button 
+                    onClick={() => setActiveTab('settings')} 
+                    className={`p-2 rounded-lg border transition-colors ${activeTab === 'settings' ? 'bg-amber-600 border-amber-500 text-white' : 'bg-neutral-800 border-neutral-700 text-neutral-300'}`}
+                    title="백업 및 설정"
+                  >
+                    <Download size={18} />
+                  </button>
+                </div>
+              </header>
+
+              {/* 메인 탭 컨텐츠 */}
+              <main className="flex-1 overflow-y-auto p-4 pb-28">
+                {activeTab === 'brew' && (
+                  <BrewWizard 
+                    beans={beans} 
+                    setBeans={setBeans}
+                    recommendations={recommendations}
+                    setRecommendations={setRecommendations}
+                    onSaveLog={(log) => {
+                      setHistory([log, ...history]);
+                      setActiveTab('history');
+                    }}
+                  />
+                )}
+                {activeTab === 'recs' && (
+                  <RecsTab beans={beans} recommendations={recommendations} />
+                )}
+                {activeTab === 'history' && (
+                  <HistoryTab history={history} />
+                )}
+                {activeTab === 'settings' && (
+                  <SettingsTab 
+                    beans={beans} 
+                    history={history} 
+                    recommendations={recommendations}
+                    onRestore={(data) => {
+                      if (data.beans) setBeans(data.beans);
+                      if (data.history) setHistory(data.history);
+                      if (data.recommendations) setRecommendations(data.recommendations);
+                      alert('데이터를 성공적으로 복원했습니다!');
+                    }}
+                  />
+                )}
+              </main>
+
+              {/* 하단 고정 내비게이션 바 */}
+              <nav className="bg-neutral-950 border-t border-neutral-800 fixed bottom-0 w-full flex justify-around p-3 pb-safe z-10">
+                <button onClick={() => setActiveTab('brew')} className={`flex flex-col items-center gap-1 w-20 ${activeTab === 'brew' ? 'text-amber-500' : 'text-neutral-500'}`}>
+                  <TimerIcon size={24} /><span className="text-xs font-medium">추출</span>
+                </button>
+                <button onClick={() => setActiveTab('recs')} className={`flex flex-col items-center gap-1 w-20 ${activeTab === 'recs' ? 'text-amber-500' : 'text-neutral-500'}`}>
+                  <Sliders size={24} /><span className="text-xs font-medium">추천값</span>
+                </button>
+                <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 w-20 ${activeTab === 'history' ? 'text-amber-500' : 'text-neutral-500'}`}>
+                  <HistoryIcon size={24} /><span className="text-xs font-medium">기록</span>
+                </button>
+                <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 w-20 ${activeTab === 'settings' ? 'text-amber-500' : 'text-neutral-500'}`}>
+                  <Download size={24} /><span className="text-xs font-medium">백업/설정</span>
+                </button>
+              </nav>
             </div>
           );
-        })}
-        <AddNewBeanForm onAdd={(newBean) => { setBeans([...beans, newBean]); setBeanId(newBean.id); handleNextStep(); }} />
-      </div>
-    </div>
-  );
-
-  if (step === 3) return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-4">
-        <button onClick={handlePrevStep} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
-        <h2 className="text-xl font-bold text-white">그라인더 선택</h2>
-      </div>
-      <div className="space-y-3">
-        {GRINDERS.map(g => (
-          <div key={g.id} onClick={() => { 
-            setGrinderId(g.id); 
-            const recKey = `${beanId}_${method}_${g.id}`;
-            setRecommendedClick(recommendations[recKey] || getDefaultClick(beanId, method, g.id));
-            handleNextStep(); 
-          }} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-amber-500/50">
-            <p className="font-semibold text-white text-lg">{g.name}</p>
-            <ChevronRight className="text-neutral-500" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  if (step === 4) return (
-    <RecipeSelection 
-      roast={selectedRoast}
-      onBack={handlePrevStep} 
-      onSelect={(type, targets) => { 
-        setDripRecipeType(type); 
-        setDripTargets(targets); 
-        handleNextStep(); 
-      }} 
-    />
-  );
-
-  if (step === 5) return (
-    <TimerSection 
-      method={method} 
-      roast={selectedRoast}
-      bean={selectedBean}
-      recommendedClick={recommendedClick} 
-      dripTargets={dripTargets} 
-      onBack={handlePrevStep} 
-      onComplete={(finalTime, finalClick, finalLaps) => { 
-        setTime(finalTime); 
-        setAdjustedTime(finalTime); 
-        setUsedClick(finalClick); 
-        setLapTimes(finalLaps); 
-        setStep(6); 
-      }} 
-    />
-  );
-
-  if (step === 6) {
-    const handleEvaluateAndSave = () => {
-      let evalResult = {};
-      let nextClick = usedClick;
-      let clickDelta = grinderId === 'a2' ? 1 : 2;
-
-      if (method === 'espresso') {
-        if (adjustedTime < 22) { 
-          evalResult = { status: 'fast', message: '너무 빠릅니다 (과소추출 우려).', tip: `다음엔 분쇄도를 ${clickDelta * 2}클릭 조여보세요.` }; 
-          nextClick -= (clickDelta * 2); 
         }
-        else if (adjustedTime >= 22 && adjustedTime < 25) { 
-          evalResult = { status: 'fast-ish', message: '약간 빠릅니다.', tip: `다음엔 분쇄도를 ${clickDelta}클릭 조여보세요.` }; 
-          nextClick -= clickDelta; 
-        }
-        else if (adjustedTime >= 25 && adjustedTime <= 30) { 
-          evalResult = { status: 'perfect', message: '골든 레인지 안착!', tip: '균형 잡힌 맛입니다. 현재 세팅을 유지하세요.' }; 
-        }
-        else if (adjustedTime > 30 && adjustedTime <= 35) { 
-          evalResult = { status: 'slow-ish', message: '약간 느립니다.', tip: `다음엔 분쇄도를 ${clickDelta}클릭 풀어보세요.` }; 
-          nextClick += clickDelta; 
-        }
-        else { 
-          evalResult = { status: 'slow', message: '너무 느립니다 (쓴맛/과다추출).', tip: `다음엔 분쇄도를 ${clickDelta * 2}클릭 풀어보세요.` }; 
-          nextClick += (clickDelta * 2); 
-        }
-      } else {
-        const finalDrawdown = adjustedTime - (lapTimes.length > 0 ? lapTimes[lapTimes.length - 1].time : 0);
-        if (finalDrawdown < 20) { 
-          evalResult = { status: 'fast', message: `배수가 너무 빠릅니다 (${finalDrawdown}초).`, tip: `가루가 굵어 싱거울 수 있습니다. ${clickDelta * 2}클릭 조이세요.` }; 
-          nextClick -= (clickDelta * 2); 
-        }
-        else if (finalDrawdown > 55) { 
-          evalResult = { status: 'slow', message: `배수가 지연되었습니다 (${finalDrawdown}초).`, tip: `미분 막힘 방지를 위해 ${clickDelta * 2}클릭 풀어주세요.` }; 
-          nextClick += (clickDelta * 2); 
-        }
-        else { 
-          evalResult = { status: 'perfect', message: `완벽한 배수 시간 (${finalDrawdown}초)!`, tip: '추천 분쇄도가 원두와 완벽히 일치합니다.' }; 
-        }
-      }
 
-      if (tasteFeedback === 'sour') {
-        evalResult.tip += ' [맛 피드백: 신맛이 튀어 1클릭 더 조이도록 추가 보정됨]';
-        nextClick -= clickDelta;
-      } else if (tasteFeedback === 'bitter') {
-        evalResult.tip += ' [맛 피드백: 쓴맛/텁텁함이 있어 1클릭 더 풀도록 추가 보정됨]';
-        nextClick += clickDelta;
-      }
+        // 5. 추출 마법사 컴포넌트
+        function BrewWizard({ beans, setBeans, recommendations, setRecommendations, onSaveLog }) {
+          const [step, setStep] = React.useState(1);
+          const [method, setMethod] = React.useState('');
+          const [beanId, setBeanId] = React.useState('');
+          const [grinderId, setGrinderId] = React.useState('');
+          const [dripRecipeType, setDripRecipeType] = React.useState('golden');
+          const [dripTargets, setDripTargets] = React.useState([]);
+          const [time, setTime] = React.useState(0);
+          const [adjustedTime, setAdjustedTime] = React.useState(0);
+          const [recommendedClick, setRecommendedClick] = React.useState(0);
+          const [usedClick, setUsedClick] = React.useState(0);
+          const [lapTimes, setLapTimes] = React.useState([]);
+          const [tasteFeedback, setTasteFeedback] = React.useState('good');
 
-      const recKey = `${beanId}_${method}_${grinderId}`;
-      setRecommendations(prev => ({ ...prev, [recKey]: nextClick }));
-      
-      onSaveLog({
-        id: Date.now().toString(),
-        date: new Date().toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-        method, 
-        recipeType: method === 'drip' ? dripRecipeType : null,
-        bean: selectedBean?.name,
-        grinder: GRINDERS.find(g => g.id === grinderId)?.name,
-        click: usedClick, 
-        time: adjustedTime, 
-        taste: tasteFeedback,
-        laps: lapTimes,
-        evaluation: evalResult, 
-        nextClick: nextClick
-      });
-    };
+          const selectedBean = beans.find(b => b.id === beanId);
+          const selectedRoast = ROAST_LEVELS.find(r => r.id === selectedBean?.roast) || ROAST_LEVELS[2];
 
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-2 mb-2">
-          <button onClick={() => setStep(5)} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
-          <h2 className="text-xl font-bold text-white">시간 조정 및 맛 평가</h2>
-        </div>
+          const getDefaultClick = (bId, mthd, gId) => {
+            const bean = beans.find(b => b.id === bId);
+            if (!bean) return 0;
+            const roastData = ROAST_LEVELS.find(r => r.id === bean.roast);
+            if (!roastData) return 0;
+            return mthd === 'espresso' ? (gId === 'a2' ? roastData.a2Esp : roastData.m40Esp) : (gId === 'a2' ? roastData.a2Drip : roastData.m40Drip);
+          };
 
-        <div className="bg-neutral-800 rounded-2xl p-6 flex flex-col items-center justify-center gap-4 shadow-inner">
-          <span className="text-xs text-neutral-400">최종 추출 시간</span>
-          <div className="text-6xl font-mono font-bold text-amber-500">
-            {Math.floor(adjustedTime / 60) > 0 && <span>{Math.floor(adjustedTime / 60)}m </span>}
-            <span>{adjustedTime % 60}s</span>
-          </div>
-          <div className="flex gap-6">
-            <button onClick={() => setAdjustedTime(t => Math.max(0, t - 1))} className="p-3 bg-neutral-700 rounded-full active:scale-95"><MinusCircle size={28} className="text-white" /></button>
-            <button onClick={() => setAdjustedTime(t => t + 1)} className="p-3 bg-neutral-700 rounded-full active:scale-95"><PlusCircle size={28} className="text-white" /></button>
-          </div>
-        </div>
+          const handleNextStep = () => {
+            if (step === 3 && method === 'espresso') setStep(5);
+            else setStep(s => s + 1);
+          };
+          
+          const handlePrevStep = () => {
+            if (step === 5 && method === 'espresso') setStep(3);
+            else setStep(s => Math.max(1, s - 1));
+          };
 
-        <div className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl space-y-2">
-          <p className="text-xs font-bold text-neutral-400">실제 맛은 어떠셨나요? (원터치 피드백)</p>
-          <div className="grid grid-cols-3 gap-2 pt-1">
-            <button 
-              onClick={() => setTasteFeedback('sour')}
-              className={`py-2.5 rounded-lg text-xs font-bold transition-all ${tasteFeedback === 'sour' ? 'bg-amber-500 text-neutral-950 font-black' : 'bg-neutral-900 text-neutral-300 border border-neutral-700'}`}
-            >
-              🍋 찌르는 신맛
-            </button>
-            <button 
-              onClick={() => setTasteFeedback('good')}
-              className={`py-2.5 rounded-lg text-xs font-bold transition-all ${tasteFeedback === 'good' ? 'bg-emerald-500 text-neutral-950 font-black' : 'bg-neutral-900 text-neutral-300 border border-neutral-700'}`}
-            >
-              ✨ 조화롭고 맛있음
-            </button>
-            <button 
-              onClick={() => setTasteFeedback('bitter')}
-              className={`py-2.5 rounded-lg text-xs font-bold transition-all ${tasteFeedback === 'bitter' ? 'bg-red-500 text-white font-black' : 'bg-neutral-900 text-neutral-300 border border-neutral-700'}`}
-            >
-              ☕ 쓰거나 떫음
-            </button>
-          </div>
-        </div>
-
-        <button onClick={handleEvaluateAndSave} className="w-full bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg">
-          <Check size={24} /> 결과 분석 및 다음 클릭수 저장
-        </button>
-      </div>
-    );
-  }
-  return null;
-}
-
-function SelectionCard({ title, subtitle, icon, selected, onClick }) {
-  return (
-    <div onClick={onClick} className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-3 cursor-pointer transition-all ${selected ? 'border-amber-500 bg-amber-500/10' : 'border-neutral-700 bg-neutral-800'}`}>
-      <div className={`p-3 rounded-full ${selected ? 'bg-amber-500/20 text-amber-500' : 'bg-neutral-700 text-neutral-400'}`}>{icon}</div>
-      <div className="text-center"><p className="font-bold text-white">{title}</p><p className="text-xs text-neutral-400 mt-0.5">{subtitle}</p></div>
-    </div>
-  );
-}
-
-function AddNewBeanForm({ onAdd }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [roast, setRoast] = useState('medium');
-  if (!isOpen) return <div onClick={() => setIsOpen(true)} className="border border-dashed border-neutral-600 p-4 rounded-xl flex justify-center items-center gap-2 text-neutral-400 cursor-pointer hover:border-amber-500/50"><Plus size={20} /><span className="font-semibold">새로운 원두 추가</span></div>;
-  return (
-    <div className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl space-y-4">
-      <h3 className="font-bold text-white mb-2">새 원두 등록</h3>
-      <input type="text" placeholder="원두 이름 (예: 에티오피아 예가체프)" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-white text-sm" />
-      <select value={roast} onChange={(e) => setRoast(e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-white text-sm">
-        {ROAST_LEVELS.map(r => <option key={r.id} value={r.id}>{r.label} ({r.temp})</option>)}
-      </select>
-      <div className="flex gap-2 pt-2">
-        <button onClick={() => setIsOpen(false)} className="flex-1 bg-neutral-700 text-white p-3 rounded-lg text-sm">취소</button>
-        <button onClick={() => { if(name.trim()) { onAdd({ id: 'custom_' + Date.now(), name, roast }); setIsOpen(false); } }} className="flex-1 bg-amber-600 text-white p-3 rounded-lg font-bold text-sm">추가하기</button>
-      </div>
-    </div>
-  );
-}
-
-function RecipeSelection({ roast, onBack, onSelect }) {
-  const [customMode, setCustomMode] = useState(false);
-  const dynamicRecipes = getDynamicRecipes(roast.id);
-  const [customPhases, setCustomPhases] = useState([
-    { label: "1차 뜸들이기", target: "40g", hint: "뜸 물을 고르게 붓습니다." },
-    { label: "뜸 대기", target: `${roast.bloomSec}초`, hint: "원두가 부풀어 오르기를 기다립니다." },
-    { label: "물 빠짐 완료", target: "완료", hint: "물이 모두 빠지면 완료를 누르세요." }
-  ]);
-  const [newLabel, setNewLabel] = useState('');
-  const [newTarget, setNewTarget] = useState('');
-
-  const handleAddPhase = () => {
-    if(newLabel && newTarget) {
-      const newPhase = { label: newLabel, target: newTarget, hint: "목표 도달 시 누르세요." };
-      const updated = [...customPhases];
-      updated.splice(updated.length - 1, 0, newPhase);
-      setCustomPhases(updated);
-      setNewLabel('');
-      setNewTarget('');
-    }
-  };
-
-  if (customMode) return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-4">
-        <button onClick={() => setCustomMode(false)} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
-        <h2 className="text-xl font-bold text-white">나만의 레시피 만들기</h2>
-      </div>
-      <div className="bg-neutral-800 p-4 rounded-xl space-y-3">
-        {customPhases.map((phase, idx) => (
-          <div key={idx} className="flex justify-between items-center bg-neutral-900 p-3 rounded-lg border border-neutral-700">
-            <div><span className="text-amber-500 font-bold text-sm mr-2">{idx + 1}단계</span><span className="text-white font-medium">{phase.label}</span></div>
-            <span className="font-mono text-neutral-400 font-bold text-sm">{phase.target}</span>
-          </div>
-        ))}
-        <div className="flex gap-2 pt-2 border-t border-neutral-700 mt-2">
-          <input type="text" placeholder="단계명" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-white text-xs" />
-          <input type="text" placeholder="목표(예: 150g, 40초)" value={newTarget} onChange={(e) => setNewTarget(e.target.value)} className="w-24 bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-white text-xs" />
-          <button onClick={handleAddPhase} className="bg-neutral-700 p-2 rounded-lg text-white"><Plus size={18} /></button>
-        </div>
-      </div>
-      <button onClick={() => onSelect('custom', customPhases)} className="w-full bg-amber-600 text-white font-bold py-4 rounded-xl shadow-lg mt-4">이 레시피로 추출 시작</button>
-    </div>
-  );
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-2">
-        <button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
-        <div>
-          <h2 className="text-xl font-bold text-white">스위치 01 레시피 선택</h2>
-          <p className="text-xs text-amber-500 font-medium">원두 배전도 맞춤 수온: {roast.temp}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3">
-        <div onClick={() => onSelect('golden', dynamicRecipes.golden)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500">
-          <div className="flex justify-between items-center mb-1">
-            <p className="font-bold text-white text-lg">골든컵 (투과식 모드)</p>
-            <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">스위치 상시 개방</span>
-          </div>
-          <p className="text-xs text-neutral-400 leading-relaxed">{roast.bloomSec}초 뜸들이기 후 3단 주수로 깨끗하고 화사한 향미 추출</p>
-        </div>
-
-        <div onClick={() => onSelect('hybrid', dynamicRecipes.hybrid)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 border-l-4 border-l-amber-500">
-          <div className="flex justify-between items-center mb-1">
-            <p className="font-bold text-white text-lg flex items-center gap-1.5"><Sparkles size={16} className="text-amber-500" /> 스위치 하이브리드</p>
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">챔피언 추천</span>
-          </div>
-          <p className="text-xs text-neutral-400 leading-relaxed">앞쪽 60g은 투과(화사한 산미) + 뒤쪽 140g은 닫아서 침출(달콤한 바디)</p>
-        </div>
-
-        <div onClick={() => onSelect('immersion', dynamicRecipes.immersion)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500">
-          <div className="flex justify-between items-center mb-1">
-            <p className="font-bold text-white text-lg">완전 침출식 (Full Immersion)</p>
-            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold">잡미 차단</span>
-          </div>
-          <p className="text-xs text-neutral-400 leading-relaxed">밸브 닫고 200g 일괄 주수 ➔ {roast.id === 'dark' ? '1분 45초' : '2분 15초'} 침출 후 원터치 배수</p>
-        </div>
-
-        <div onClick={() => setCustomMode(true)} className="border-2 border-dashed border-neutral-700 p-4 rounded-xl flex items-center gap-3 text-neutral-400 cursor-pointer hover:border-neutral-500">
-          <PlusCircle size={24} />
-          <div><p className="font-bold text-base text-white">나만의 커스텀 레시피</p><p className="text-xs text-neutral-500">원하는 구간과 목표량 직접 등록</p></div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const parseTargetTime = (target) => {
-  if (!target) return null;
-  if (target.includes('초')) { const m = target.match(/(\d+)\s*초/); return m ? parseInt(m[1]) : null; }
-  if (target.includes('분')) { 
-    const parts = target.split('분');
-    const min = parseInt(parts[0]) || 0;
-    const sec = parts[1] && parts[1].includes('초') ? parseInt(parts[1]) : 0;
-    return min * 60 + sec;
-  }
-  return null;
-};
-
-function TimerSection({ method, roast, bean, recommendedClick, dripTargets, onBack, onComplete }) {
-  const [isRunning, setIsRunning] = useState(false);
-  const [preStartCountdown, setPreStartCountdown] = useState(null);
-  const [time, setTime] = useState(0);
-  const [phaseTime, setPhaseTime] = useState(0);
-  const [isPrepped, setIsPrepped] = useState(false);
-  const [currentClick, setCurrentClick] = useState(recommendedClick);
-  const [laps, setLaps] = useState([]);
-  const [dripPhase, setDripPhase] = useState(0);
-  const timerRef = useRef(null);
-
-  useEffect(() => { setCurrentClick(recommendedClick); }, [recommendedClick]);
-
-  const triggerSoundAndVibrate = (freq = 880, duration = 0.12) => {
-    playBeep(freq, duration);
-    if (navigator.vibrate) navigator.vibrate(80);
-  };
-
-  useEffect(() => {
-    if (preStartCountdown === null) return;
-    if (preStartCountdown > 0) {
-      triggerSoundAndVibrate(600, 0.1);
-      const timer = setTimeout(() => setPreStartCountdown(c => c - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (preStartCountdown === 0) {
-      playChime();
-      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      setIsRunning(true);
-      timerRef.current = setInterval(() => { 
-        setTime(t => t + 1); 
-        setPhaseTime(pt => pt + 1); 
-      }, 1000);
-      setPreStartCountdown(null);
-    }
-  }, [preStartCountdown]);
-
-  useEffect(() => {
-    if (method === 'espresso' && isRunning) {
-      if (time === 5 || time === 6 || time === 7) {
-        triggerSoundAndVibrate(700, 0.08);
-      } else if (time === 8) {
-        playChime();
-      }
-    }
-  }, [time, method, isRunning]);
-
-  useEffect(() => {
-    if (method === 'drip' && isRunning && dripTargets[dripPhase]) {
-      const targetSec = parseTargetTime(dripTargets[dripPhase]?.target);
-      if (targetSec !== null) {
-        const remain = targetSec - phaseTime;
-        if (remain === 3 || remain === 2 || remain === 1) {
-          triggerSoundAndVibrate(800, 0.08);
-        } else if (remain === 0) {
-          playChime();
-        }
-      }
-    }
-  }, [phaseTime, dripPhase, method, isRunning, dripTargets]);
-
-  const startTimer = () => { if (preStartCountdown === null && !isRunning) setPreStartCountdown(3); };
-  const stopTimer = () => { 
-    setIsRunning(false); 
-    clearInterval(timerRef.current); 
-    playChime();
-    onComplete(time, currentClick, laps); 
-  };
-  useEffect(() => () => clearInterval(timerRef.current), []);
-
-  const isPreInfusion = method === 'espresso' && isRunning && time <= 8;
-
-  const handleLap = () => {
-    triggerSoundAndVibrate(900, 0.1);
-    setLaps([...laps, { phase: dripPhase, time }]);
-    setDripPhase(p => p + 1);
-    setPhaseTime(0);
-  };
-
-  if (!isPrepped) {
-    if (method === 'espresso') return (
-      <div className="space-y-6 h-full flex flex-col">
-        <div className="flex items-center gap-2 mb-2"><button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button><h2 className="text-xl font-bold text-white">추출 준비 (에스프레소)</h2></div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
-          <div className="bg-orange-900/20 p-6 rounded-full"><Flame size={64} className="text-orange-500" /></div>
-          <div className="space-y-2">
-            <h3 className="text-2xl font-bold text-white">포터필터 공추출 예열</h3>
-            <p className="text-neutral-400 text-sm px-4 leading-relaxed">
-              밤비노 플러스는 그룹헤드와 포터필터가 차가우면 신맛이 튑니다. <br/>
-              <span className="text-amber-400 font-bold">빈 포터필터를 체결하고 1CUP 버튼으로 뜨거운 물을 1회 통과</span>시킨 뒤 바스켓 물기를 마른 천으로 닦아주세요.
-            </p>
-          </div>
-        </div>
-        <button onClick={() => setIsPrepped(true)} className="w-full bg-orange-600 hover:bg-orange-500 active:scale-95 text-white font-bold text-xl py-5 rounded-2xl shadow-lg">예열 및 건조 완료</button>
-      </div>
-    );
-    return (
-      <div className="space-y-6 h-full flex flex-col">
-        <div className="flex items-center gap-2 mb-2"><button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button><h2 className="text-xl font-bold text-white">추출 준비 (하리오 스위치)</h2></div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
-          <div className="bg-blue-900/20 p-6 rounded-full"><Droplets size={64} className="text-blue-400" /></div>
-          <div className="space-y-2">
-            <h3 className="text-2xl font-bold text-white">{bean?.name} 맞춤 세팅</h3>
-            <div className="inline-block bg-neutral-800 border border-neutral-700 px-4 py-2 rounded-xl text-left text-xs space-y-1 my-2">
-              <p className="text-amber-400 font-bold">🌡️ 추천 수온: {roast?.temp}</p>
-              <p className="text-neutral-300">⚖️ 도징 비율: 원두 13g / 총 물량 200ml</p>
-              <p className="text-neutral-400">💡 {roast?.note}</p>
+          // 1단계: 추출 방식 선택
+          if (step === 1) return (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-white mb-6">어떤 커피를 내리실 건가요?</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <SelectionCard title="에스프레소" subtitle="밤비노 플러스 (18g)" icon={<Coffee size={32} />} selected={method === 'espresso'} onClick={() => { setMethod('espresso'); handleNextStep(); }} />
+                <SelectionCard title="드립 (하리오 스위치)" subtitle="13g 맞춤 브루잉" icon={<TimerIcon size={32} />} selected={method === 'drip'} onClick={() => { setMethod('drip'); handleNextStep(); }} />
+              </div>
             </div>
-            <p className="text-neutral-400 text-xs px-4 leading-relaxed">
-              종이 필터를 린싱하여 종이 맛을 빼고 드리퍼를 데운 뒤, <span className="text-amber-400 font-bold">서버에 고인 물은 반드시 버려주세요.</span>
-            </p>
-          </div>
-        </div>
-        <button onClick={() => setIsPrepped(true)} className="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xl py-5 rounded-2xl shadow-lg">린싱 및 물 버리기 완료</button>
-      </div>
-    );
-  }
+          );
 
-  return (
-    <div className="space-y-5 h-full flex flex-col">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
-          <h2 className="text-lg font-bold text-white">{bean?.name}</h2>
-        </div>
-        <div className="flex items-center gap-2 bg-neutral-800 px-3 py-1 rounded-full text-xs font-mono">
-          <span className="text-amber-400 font-bold">수온 {roast?.temp}</span>
-        </div>
-      </div>
-      
-      <div className="bg-neutral-800 border border-neutral-700 p-4 rounded-2xl">
-        <div className="flex justify-between items-center">
-          <div className="text-center px-4"><p className="text-[11px] text-neutral-400">추천 클릭</p><span className="text-2xl font-bold text-neutral-500">{recommendedClick}</span></div>
-          <div className="w-px h-10 bg-neutral-700"></div>
-          <div className="text-center flex flex-col items-center">
-            <p className="text-[11px] text-amber-500 font-bold mb-1">적용할 클릭 (미세조정)</p>
-            <div className="flex items-center gap-4">
-              <button onClick={() => setCurrentClick(c => c - 1)} className="text-neutral-400 active:scale-90"><MinusCircle size={26} /></button>
-              <span className="text-3xl font-black text-amber-500 w-12 text-center">{currentClick}</span>
-              <button onClick={() => setCurrentClick(c => c + 1)} className="text-neutral-400 active:scale-90"><PlusCircle size={26} /></button>
+          // 2단계: 원두 선택
+          if (step === 2) return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <button onClick={handlePrevStep} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
+                <h2 className="text-xl font-bold text-white">원두를 선택하세요</h2>
+              </div>
+              <div className="space-y-3">
+                {beans.map(bean => {
+                  const r = ROAST_LEVELS.find(lvl => lvl.id === bean.roast);
+                  return (
+                    <div key={bean.id} onClick={() => { setBeanId(bean.id); handleNextStep(); }} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-amber-500/50">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-white text-lg">{bean.name}</p>
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-neutral-700 text-amber-400 font-bold">{r?.label}</span>
+                        </div>
+                        <p className="text-xs text-neutral-400 mt-1">권장 수온: <span className="text-neutral-300 font-mono font-bold">{r?.temp}</span></p>
+                      </div>
+                      <ChevronRight className="text-neutral-500" />
+                    </div>
+                  );
+                })}
+                <AddNewBeanForm onAdd={(newBean) => { setBeans([...beans, newBean]); setBeanId(newBean.id); handleNextStep(); }} />
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
+          );
 
-      <div className="flex-1 flex flex-col items-center justify-center py-1">
-        <div className="text-neutral-400 text-xs font-medium mb-1 flex items-center gap-1">
-          <Volume2 size={14} className="text-amber-500" /> 사운드 알림 켜짐 · 전체 시간
-        </div>
-        {preStartCountdown !== null && preStartCountdown > 0 ? (
-          <div className="text-9xl font-black text-amber-500 animate-ping my-4">{preStartCountdown}</div>
-        ) : (
-          <div className={`text-8xl font-mono font-light tracking-tighter ${isPreInfusion ? 'text-amber-400 animate-pulse' : 'text-white'}`}>
-            {Math.floor(time / 60)}:{(time % 60).toString().padStart(2, '0')}
-          </div>
-        )}
-        
-        <div className="h-14 flex items-center justify-center mt-2 w-full">
-          {isRunning && method === 'drip' && (() => {
-            const targetSec = parseTargetTime(dripTargets[dripPhase]?.target);
-            if (targetSec !== null) {
-              const remain = targetSec - phaseTime;
-              if (remain <= 3 && remain > 0) return <div className="text-5xl font-black text-red-500 animate-ping">-{remain}</div>;
-              if (remain <= 0) return <div className="text-xl font-bold text-emerald-400 animate-pulse">지금 다음 단계 진행!</div>;
-              return <div className="text-sm text-neutral-300 font-mono bg-neutral-800 px-4 py-1.5 rounded-full border border-neutral-700">대기 시간: <span className="text-amber-400 font-bold">{remain}초</span> 남음</div>;
-            }
-            return null;
-          })()}
-        </div>
-
-        <div className="mt-2 flex flex-col items-center justify-center w-full text-center">
-          {isPreInfusion && (
-            <div className="space-y-1">
-              <p className="text-amber-400 font-bold bg-amber-900/30 px-4 py-1.5 rounded-full text-sm">⏳ 8초 저압 프리인퓨전 중</p>
-              {8 - time <= 3 && 8 - time > 0 && <p className="text-2xl font-black text-red-500 animate-bounce">{8 - time}초 후 손 떼세요!</p>}
-              {8 - time === 0 && <p className="text-xl font-bold text-emerald-400">손 떼기 완료 (본추출 진입)</p>}
-            </div>
-          )}
-
-          {isRunning && method === 'drip' && dripTargets[dripPhase] && (
-            <p className="text-amber-300 font-medium bg-amber-950/40 border border-amber-800/60 px-4 py-2.5 rounded-xl w-full max-w-sm mb-2 text-xs shadow-md">
-              👉 {dripTargets[dripPhase].hint}
-            </p>
-          )}
-
-          {isRunning && method === 'drip' && (
-            <div className="w-full mt-2">
-              <div className="flex flex-wrap justify-center gap-1.5 mb-3 bg-neutral-950 p-2 rounded-xl">
-                {dripTargets.map((t, i) => (
-                  <div key={i} className={`flex flex-col items-center p-1.5 rounded-lg w-16 text-[10px] ${dripPhase === i ? 'bg-amber-600 text-white font-bold' : 'text-neutral-500'}`}>
-                    <span>{t.label}</span>
-                    <span className="font-mono">{t.target}</span>
+          // 3단계: 그라인더 선택
+          if (step === 3) return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <button onClick={handlePrevStep} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
+                <h2 className="text-xl font-bold text-white">그라인더 선택</h2>
+              </div>
+              <div className="space-y-3">
+                {GRINDERS.map(g => (
+                  <div key={g.id} onClick={() => { 
+                    setGrinderId(g.id); 
+                    const recKey = `${beanId}_${method}_${g.id}`;
+                    setRecommendedClick(recommendations[recKey] || getDefaultClick(beanId, method, g.id));
+                    handleNextStep(); 
+                  }} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-amber-500/50">
+                    <p className="font-semibold text-white text-lg">{g.name}</p>
+                    <ChevronRight className="text-neutral-500" />
                   </div>
                 ))}
               </div>
-              {dripPhase < dripTargets.length - 1 ? (
-                <button onClick={handleLap} className="w-full bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-bold text-base py-3.5 rounded-xl shadow-lg">구간 확인 및 다음 단계</button>
-              ) : (
-                <button onClick={stopTimer} className="w-full bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-bold text-base py-3.5 rounded-xl shadow-lg">물 빠짐 완료 (추출 종료)</button>
-              )}
             </div>
-          )}
-        </div>
-      </div>
+          );
 
-      <div className="mt-auto">
-        {!isRunning ? (
-          <button onClick={startTimer} disabled={preStartCountdown !== null} className={`w-full font-bold text-xl py-5 rounded-2xl flex items-center justify-center gap-2 shadow-lg ${preStartCountdown !== null ? 'bg-neutral-700 text-neutral-500' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>
-            <Play size={28} /> {preStartCountdown !== null ? '준비 중...' : '추출 시작'}
-          </button>
-        ) : method === 'espresso' && (
-          <button onClick={stopTimer} className="w-full bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-xl py-5 rounded-2xl flex items-center justify-center gap-2 shadow-lg">
-            <Square size={28} /> 36g 도달 (추출 정지)
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+          // 4단계: 레시피 선택 (드립일 때만)
+          if (step === 4) return (
+            <RecipeSelection 
+              roast={selectedRoast}
+              onBack={handlePrevStep} 
+              onSelect={(type, targets) => { 
+                setDripRecipeType(type); 
+                setDripTargets(targets); 
+                handleNextStep(); 
+              }} 
+            />
+          );
 
-function HistoryTab({ history }) {
-  const [filter, setFilter] = useState('all');
-  const espressoCount = history.filter(log => log.method === 'espresso').length;
-  const dripCount = history.filter(log => log.method === 'drip').length;
-  const filteredHistory = history.filter(log => filter === 'all' || log.method === filter);
+          // 5단계: 준비 및 타이머 화면
+          if (step === 5) return (
+            <TimerSection 
+              method={method} 
+              roast={selectedRoast}
+              bean={selectedBean}
+              recommendedClick={recommendedClick} 
+              dripTargets={dripTargets} 
+              onBack={handlePrevStep} 
+              onComplete={(finalTime, finalClick, finalLaps) => { 
+                setTime(finalTime); 
+                setAdjustedTime(finalTime); 
+                setUsedClick(finalClick); 
+                setLapTimes(finalLaps); 
+                setStep(6); 
+              }} 
+            />
+          );
 
-  if (history.length === 0) return <div className="text-center py-20 text-neutral-500">아직 추출 기록이 없습니다.</div>;
+          // 6단계: 시간 조정 및 원터치 맛 평가
+          if (step === 6) {
+            const handleEvaluateAndSave = () => {
+              let evalResult = {};
+              let nextClick = usedClick;
+              let clickDelta = grinderId === 'a2' ? 1 : 2;
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-2xl font-bold text-white">추출 기록</h2>
-        <div className="flex bg-neutral-800 rounded-lg p-1">
-          <button onClick={() => setFilter('all')} className={`px-3 py-1 text-sm rounded-md ${filter === 'all' ? 'bg-amber-600 text-white' : 'text-neutral-400'}`}>전체</button>
-          <button onClick={() => setFilter('espresso')} className={`px-3 py-1 text-sm rounded-md ${filter === 'espresso' ? 'bg-amber-600 text-white' : 'text-neutral-400'}`}>에소</button>
-          <button onClick={() => setFilter('drip')} className={`px-3 py-1 text-sm rounded-md ${filter === 'drip' ? 'bg-amber-600 text-white' : 'text-neutral-400'}`}>드립</button>
-        </div>
-      </div>
-      <div className="flex gap-4 mb-4 text-xs font-medium text-neutral-400">
-        <div className="bg-neutral-800 px-3 py-1.5 rounded-md">누적 에쏘 <span className="text-amber-500 font-bold">{espressoCount}잔</span></div>
-        <div className="bg-neutral-800 px-3 py-1.5 rounded-md">누적 드립 <span className="text-amber-500 font-bold">{dripCount}잔</span></div>
-      </div>
-      <div className="space-y-4">
-        {filteredHistory.map(log => (
-          <div key={log.id} className="bg-neutral-800 border border-neutral-700 rounded-xl p-4 shadow-sm">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="px-2 py-0.5 bg-neutral-700 text-neutral-300 text-[10px] rounded font-bold uppercase">{log.method === 'espresso' ? '에스프레소' : '드립'}</span>
-                  {log.taste === 'sour' && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">신맛 감지</span>}
-                  {log.taste === 'bitter' && <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">쓴맛 감지</span>}
-                  {log.taste === 'good' && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">맛있음</span>}
+              if (method === 'espresso') {
+                if (adjustedTime < 22) { 
+                  evalResult = { status: 'fast', message: '너무 빠릅니다 (과소추출 우려).', tip: `다음엔 분쇄도를 ${clickDelta * 2}클릭 조여보세요.` }; 
+                  nextClick -= (clickDelta * 2); 
+                }
+                else if (adjustedTime >= 22 && adjustedTime < 25) { 
+                  evalResult = { status: 'fast-ish', message: '약간 빠릅니다.', tip: `다음엔 분쇄도를 ${clickDelta}클릭 조여보세요.` }; 
+                  nextClick -= clickDelta; 
+                }
+                else if (adjustedTime >= 25 && adjustedTime <= 30) { 
+                  evalResult = { status: 'perfect', message: '골든 레인지 안착!', tip: '균형 잡힌 맛입니다. 현재 세팅을 유지하세요.' }; 
+                }
+                else if (adjustedTime > 30 && adjustedTime <= 35) { 
+                  evalResult = { status: 'slow-ish', message: '약간 느립니다.', tip: `다음엔 분쇄도를 ${clickDelta}클릭 풀어보세요.` }; 
+                  nextClick += clickDelta; 
+                }
+                else { 
+                  evalResult = { status: 'slow', message: '너무 느립니다 (쓴맛/과다추출).', tip: `다음엔 분쇄도를 ${clickDelta * 2}클릭 풀어보세요.` }; 
+                  nextClick += (clickDelta * 2); 
+                }
+              } else {
+                const finalDrawdown = adjustedTime - (lapTimes.length > 0 ? lapTimes[lapTimes.length - 1].time : 0);
+                if (finalDrawdown < 20) { 
+                  evalResult = { status: 'fast', message: `배수가 너무 빠릅니다 (${finalDrawdown}초).`, tip: `가루가 굵어 싱거울 수 있습니다. ${clickDelta * 2}클릭 조이세요.` }; 
+                  nextClick -= (clickDelta * 2); 
+                }
+                else if (finalDrawdown > 55) { 
+                  evalResult = { status: 'slow', message: `배수가 지연되었습니다 (${finalDrawdown}초).`, tip: `미분 막힘 방지를 위해 ${clickDelta * 2}클릭 풀어주세요.` }; 
+                  nextClick += (clickDelta * 2); 
+                }
+                else { 
+                  evalResult = { status: 'perfect', message: `완벽한 배수 시간 (${finalDrawdown}초)!`, tip: '추천 분쇄도가 원두와 완벽히 일치합니다.' }; 
+                }
+              }
+
+              if (tasteFeedback === 'sour') {
+                evalResult.tip += ' [맛 피드백: 신맛이 강해 1클릭 더 조이도록 추가 보정됨]';
+                nextClick -= clickDelta;
+              } else if (tasteFeedback === 'bitter') {
+                evalResult.tip += ' [맛 피드백: 쓴맛/텁텁함이 있어 1클릭 더 풀도록 추가 보정됨]';
+                nextClick += clickDelta;
+              }
+
+              const recKey = `${beanId}_${method}_${grinderId}`;
+              setRecommendations(prev => ({ ...prev, [recKey]: nextClick }));
+              
+              onSaveLog({
+                id: Date.now().toString(),
+                date: new Date().toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                method, 
+                recipeType: method === 'drip' ? dripRecipeType : null,
+                bean: selectedBean?.name,
+                grinder: GRINDERS.find(g => g.id === grinderId)?.name,
+                click: usedClick, 
+                time: adjustedTime, 
+                taste: tasteFeedback,
+                laps: lapTimes,
+                evaluation: evalResult, 
+                nextClick: nextClick
+              });
+            };
+
+            return (
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <button onClick={() => setStep(5)} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
+                  <h2 className="text-xl font-bold text-white">시간 조정 및 맛 평가</h2>
                 </div>
-                <h3 className="font-bold text-white text-lg">{log.bean}</h3>
-                <p className="text-xs text-neutral-400">{log.date} · {log.grinder}</p>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-mono font-bold text-amber-500">{log.time}s</div>
-                <div className="text-sm text-neutral-400">{log.click} 클릭</div>
-              </div>
-            </div>
-            <div className="mt-3 p-3 rounded-lg text-xs bg-neutral-900/60 border border-neutral-700">
-              <p className="font-semibold text-amber-300 mb-1">{log.evaluation.message}</p>
-              <p className="text-neutral-400 leading-relaxed">{log.evaluation.tip}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
-function RecsTab({ beans, recommendations }) {
-  const getDefaults = (roastId) => ROAST_LEVELS.find(r => r.id === roastId) || {};
-  return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-white mb-1">추천 분쇄도 표</h2>
-      <p className="text-xs text-neutral-400 mb-4">원두별 최초 기본값과, 실제 추출 및 맛 평가로 갱신된 현재 추천값입니다.</p>
-      <div className="space-y-4">
-        {beans.map(bean => {
-          const def = getDefaults(bean.roast);
-          const renderVal = (m, g, d) => {
-            const c = recommendations[`${bean.id}_${m}_${g}`];
-            return c && c !== d ? (
-              <div className="flex items-center gap-1"><span className="text-neutral-500 line-through text-xs font-mono">{d}</span><ChevronRight size={12} /><span className="text-amber-500 font-bold font-mono text-base">{c}</span></div>
-            ) : <span className="text-white font-bold font-mono text-base">{d || '-'}</span>;
-          };
+                <div className="bg-neutral-800 rounded-2xl p-6 flex flex-col items-center justify-center gap-4 shadow-inner">
+                  <span className="text-xs text-neutral-400">최종 추출 시간</span>
+                  <div className="text-6xl font-mono font-bold text-amber-500">
+                    {Math.floor(adjustedTime / 60) > 0 && <span>{Math.floor(adjustedTime / 60)}m </span>}
+                    <span>{adjustedTime % 60}s</span>
+                  </div>
+                  <div className="flex gap-6">
+                    <button onClick={() => setAdjustedTime(t => Math.max(0, t - 1))} className="p-3 bg-neutral-700 rounded-full active:scale-95"><MinusCircle size={28} className="text-white" /></button>
+                    <button onClick={() => setAdjustedTime(t => t + 1)} className="p-3 bg-neutral-700 rounded-full active:scale-95"><PlusCircle size={28} className="text-white" /></button>
+                  </div>
+                </div>
 
+                <div className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl space-y-2">
+                  <p className="text-xs font-bold text-neutral-400">실제 맛은 어떠셨나요? (원터치 피드백)</p>
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    <button 
+                      onClick={() => setTasteFeedback('sour')}
+                      className={`py-2.5 rounded-lg text-xs font-bold transition-all ${tasteFeedback === 'sour' ? 'bg-amber-500 text-neutral-950 font-black' : 'bg-neutral-900 text-neutral-300 border border-neutral-700'}`}
+                    >
+                      🍋 찌르는 신맛
+                    </button>
+                    <button 
+                      onClick={() => setTasteFeedback('good')}
+                      className={`py-2.5 rounded-lg text-xs font-bold transition-all ${tasteFeedback === 'good' ? 'bg-emerald-500 text-neutral-950 font-black' : 'bg-neutral-900 text-neutral-300 border border-neutral-700'}`}
+                    >
+                      ✨ 조화롭고 맛있음
+                    </button>
+                    <button 
+                      onClick={() => setTasteFeedback('bitter')}
+                      className={`py-2.5 rounded-lg text-xs font-bold transition-all ${tasteFeedback === 'bitter' ? 'bg-red-500 text-white font-black' : 'bg-neutral-900 text-neutral-300 border border-neutral-700'}`}
+                    >
+                      ☕ 쓰거나 떫음
+                    </button>
+                  </div>
+                </div>
+
+                <button onClick={handleEvaluateAndSave} className="w-full bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg">
+                  <Check size={24} /> 결과 분석 및 다음 클릭수 저장
+                </button>
+              </div>
+            );
+          }
+          return null;
+        }
+
+        function SelectionCard({ title, subtitle, icon, selected, onClick }) {
           return (
-            <div key={bean.id} className="bg-neutral-800 border border-neutral-700 rounded-xl p-4">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="font-bold text-white text-lg">{bean.name}</h3>
-                <div className="text-right">
-                  <span className="text-xs text-amber-500 font-bold">{def.label}</span>
-                  <span className="text-[10px] text-neutral-400 block font-mono">수온 {def.temp}</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-neutral-900 p-3 rounded-lg"><div className="text-[10px] text-neutral-400 mb-1">에스프레소 (18g)</div><div className="flex justify-between text-xs"><span>A2</span>{renderVal('espresso','a2',def.a2Esp)}</div><div className="flex justify-between text-xs mt-1"><span>M40</span>{renderVal('espresso','m40',def.m40Esp)}</div></div>
-                <div className="bg-neutral-900 p-3 rounded-lg"><div className="text-[10px] text-neutral-400 mb-1">드립 (스위치 13g)</div><div className="flex justify-between text-xs"><span>A2</span>{renderVal('drip','a2',def.a2Drip)}</div><div className="flex justify-between text-xs mt-1"><span>M40</span>{renderVal('drip','m40',def.m40Drip)}</div></div>
+            <div onClick={onClick} className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-3 cursor-pointer transition-all ${selected ? 'border-amber-500 bg-amber-500/10' : 'border-neutral-700 bg-neutral-800'}`}>
+              <div className={`p-3 rounded-full ${selected ? 'bg-amber-500/20 text-amber-500' : 'bg-neutral-700 text-neutral-400'}`}>{icon}</div>
+              <div className="text-center"><p className="font-bold text-white">{title}</p><p className="text-xs text-neutral-400 mt-0.5">{subtitle}</p></div>
+            </div>
+          );
+        }
+
+        function AddNewBeanForm({ onAdd }) {
+          const [isOpen, setIsOpen] = React.useState(false);
+          const [name, setName] = React.useState('');
+          const [roast, setRoast] = React.useState('medium');
+          if (!isOpen) return <div onClick={() => setIsOpen(true)} className="border border-dashed border-neutral-600 p-4 rounded-xl flex justify-center items-center gap-2 text-neutral-400 cursor-pointer hover:border-amber-500/50"><Plus size={20} /><span className="font-semibold">새로운 원두 추가</span></div>;
+          return (
+            <div className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl space-y-4">
+              <h3 className="font-bold text-white mb-2">새 원두 등록</h3>
+              <input type="text" placeholder="원두 이름 (예: 에티오피아 예가체프)" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-white text-sm" />
+              <select value={roast} onChange={(e) => setRoast(e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-white text-sm">
+                {ROAST_LEVELS.map(r => <option key={r.id} value={r.id}>{r.label} ({r.temp})</option>)}
+              </select>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setIsOpen(false)} className="flex-1 bg-neutral-700 text-white p-3 rounded-lg text-sm">취소</button>
+                <button onClick={() => { if(name.trim()) { onAdd({ id: 'custom_' + Date.now(), name, roast }); setIsOpen(false); } }} className="flex-1 bg-amber-600 text-white p-3 rounded-lg font-bold text-sm">추가하기</button>
               </div>
             </div>
           );
-        })}
-      </div>
-    </div>
-  );
-}
+        }
 
-function SettingsTab({ beans, history, recommendations, onRestore }) {
-  const [email, setEmail] = useState(() => {
-    try { return localStorage.getItem('user-backup-email') || ''; } catch(e) { return ''; }
-  });
-  const fileInputRef = useRef(null);
+        function RecipeSelection({ roast, onBack, onSelect }) {
+          const [customMode, setCustomMode] = React.useState(false);
+          const dynamicRecipes = getDynamicRecipes(roast.id);
+          const [customPhases, setCustomPhases] = React.useState([
+            { label: "1차 뜸들이기", target: "40g", hint: "뜸 물을 고르게 붓습니다." },
+            { label: "뜸 대기", target: `${roast.bloomSec}초`, hint: "원두가 부풀어 오르기를 기다립니다." },
+            { label: "물 빠짐 완료", target: "완료", hint: "물이 모두 빠지면 완료를 누르세요." }
+          ]);
+          const [newLabel, setNewLabel] = React.useState('');
+          const [newTarget, setNewTarget] = React.useState('');
 
-  useEffect(() => {
-    try { localStorage.setItem('user-backup-email', email); } catch(e) {}
-  }, [email]);
+          const handleAddPhase = () => {
+            if(newLabel && newTarget) {
+              const newPhase = { label: newLabel, target: newTarget, hint: "목표 도달 시 누르세요." };
+              const updated = [...customPhases];
+              updated.splice(updated.length - 1, 0, newPhase);
+              setCustomPhases(updated);
+              setNewLabel('');
+              setNewTarget('');
+            }
+          };
 
-  const handleExportJSON = () => {
-    const data = { beans, history, recommendations, version: '1.4.0', exportedAt: new Date().toISOString() };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `coffee_dialin_backup_${new Date().toISOString().slice(0,10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
+          if (customMode) return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <button onClick={() => setCustomMode(false)} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
+                <h2 className="text-xl font-bold text-white">나만의 레시피 만들기</h2>
+              </div>
+              <div className="bg-neutral-800 p-4 rounded-xl space-y-3">
+                {customPhases.map((phase, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-neutral-900 p-3 rounded-lg border border-neutral-700">
+                    <div><span className="text-amber-500 font-bold text-sm mr-2">{idx + 1}단계</span><span className="text-white font-medium">{phase.label}</span></div>
+                    <span className="font-mono text-neutral-400 font-bold text-sm">{phase.target}</span>
+                  </div>
+                ))}
+                <div className="flex gap-2 pt-2 border-t border-neutral-700 mt-2">
+                  <input type="text" placeholder="단계명" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-white text-xs" />
+                  <input type="text" placeholder="목표(예: 150g, 40초)" value={newTarget} onChange={(e) => setNewTarget(e.target.value)} className="w-24 bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-white text-xs" />
+                  <button onClick={handleAddPhase} className="bg-neutral-700 p-2 rounded-lg text-white"><Plus size={18} /></button>
+                </div>
+              </div>
+              <button onClick={() => onSelect('custom', customPhases)} className="w-full bg-amber-600 text-white font-bold py-4 rounded-xl shadow-lg mt-4">이 레시피로 추출 시작</button>
+            </div>
+          );
 
-  const handleImportJSON = (e) => {
-    const fileReader = new FileReader();
-    if (e.target.files[0]) {
-      fileReader.readAsText(e.target.files[0], "UTF-8");
-      fileReader.onload = (event) => {
-        try {
-          const parsed = JSON.parse(event.target.result);
-          onRestore(parsed);
-        } catch (err) { alert('올바른 백업 파일 형식이 아닙니다.'); }
-      };
-    }
-  };
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
+                <div>
+                  <h2 className="text-xl font-bold text-white">스위치 01 레시피 선택</h2>
+                  <p className="text-xs text-amber-500 font-medium">원두 배전도 맞춤 수온: {roast.temp}</p>
+                </div>
+              </div>
 
-  const handleSendEmail = () => {
-    if (!email.trim()) { alert('전송할 메일 주소를 먼저 입력해 주세요.'); return; }
-    const data = { beans, history, recommendations };
-    const jsonString = JSON.stringify(data, null, 2);
-    const subject = encodeURIComponent('[Coffee Tracker] 데이터 백업');
-    const body = encodeURIComponent(`백업 데이터:\n\n${jsonString}`);
-    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-  };
+              <div className="grid grid-cols-1 gap-3">
+                <div onClick={() => onSelect('golden', dynamicRecipes.golden)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500">
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="font-bold text-white text-lg">골든컵 (투과식 모드)</p>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">스위치 상시 개방</span>
+                  </div>
+                  <p className="text-xs text-neutral-400 leading-relaxed">{roast.bloomSec}초 뜸들이기 후 3단 주수로 깨끗하고 화사한 향미 추출</p>
+                </div>
 
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white mb-2">백업 및 설정</h2>
-      <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-4 space-y-4">
-        <h3 className="font-bold text-white text-base flex items-center gap-2"><Download size={18} className="text-amber-500" /> 백업 파일(.json) 다운로드</h3>
-        <button onClick={handleExportJSON} className="w-full bg-neutral-700 hover:bg-neutral-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm">
-          <Download size={16} /> 파일 백업하기
-        </button>
-      </div>
-      <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-4 space-y-3">
-        <h3 className="font-bold text-white text-base flex items-center gap-2"><Mail size={18} className="text-amber-500" /> 이메일로 백업 전송</h3>
-        <input type="email" placeholder="본인 메일 주소 입력" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-white text-xs" />
-        <button onClick={handleSendEmail} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm">
-          <Mail size={16} /> 메일로 전송
-        </button>
-      </div>
-      <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-4 space-y-4">
-        <h3 className="font-bold text-white text-base flex items-center gap-2"><Upload size={18} className="text-amber-500" /> 데이터 가져오기 (복원)</h3>
-        <input type="file" ref={fileInputRef} onChange={handleImportJSON} accept=".json" className="hidden" />
-        <button onClick={() => fileInputRef.current.click()} className="w-full bg-neutral-700 hover:bg-neutral-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm">
-          <Upload size={16} /> 백업 파일 불러오기
-        </button>
-      </div>
-    </div>
-  );
-}
+                <div onClick={() => onSelect('hybrid', dynamicRecipes.hybrid)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 border-l-4 border-l-amber-500">
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="font-bold text-white text-lg flex items-center gap-1.5"><Sparkles size={16} className="text-amber-500" /> 스위치 하이브리드</p>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">챔피언 추천</span>
+                  </div>
+                  <p className="text-xs text-neutral-400 leading-relaxed">앞쪽 60g은 투과(화사한 산미) + 뒤쪽 140g은 닫아서 침출(달콤한 바디)</p>
+                </div>
+
+                <div onClick={() => onSelect('immersion', dynamicRecipes.immersion)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500">
+                  <div className="flex justify-between items-center mb-1">
+                    <p className="font-bold text-white text-lg">완전 침출식 (Full Immersion)</p>
+                    <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold">잡미 차단</span>
+                  </div>
+                  <p className="text-xs text-neutral-400 leading-relaxed">밸브 닫고 200g 일괄 주수 ➔ {roast.id === 'dark' ? '1분 45초' : '2분 15초'} 침출 후 원터치 배수</p>
+                </div>
+
+                <div onClick={() => setCustomMode(true)} className="border-2 border-dashed border-neutral-700 p-4 rounded-xl flex items-center gap-3 text-neutral-400 cursor-pointer hover:border-neutral-500">
+                  <PlusCircle size={24} />
+                  <div><p className="font-bold text-base text-white">나만의 커스텀 레시피</p><p className="text-xs text-neutral-500">원하는 구간과 목표량 직접 등록</p></div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        const parseTargetTime = (target) => {
+          if (!target) return null;
+          if (target.includes('초')) { const m = target.match(/(\d+)\s*초/); return m ? parseInt(m[1]) : null; }
+          if (target.includes('분')) { 
+            const parts = target.split('분');
+            const min = parseInt(parts[0]) || 0;
+            const sec = parts[1] && parts[1].includes('초') ? parseInt(parts[1]) : 0;
+            return min * 60 + sec;
+          }
+          return null;
+        };
+
+        function TimerSection({ method, roast, bean, recommendedClick, dripTargets, onBack, onComplete }) {
+          const [isRunning, setIsRunning] = React.useState(false);
+          const [preStartCountdown, setPreStartCountdown] = React.useState(null);
+          const [time, setTime] = React.useState(0);
+          const [phaseTime, setPhaseTime] = React.useState(0);
+          const [isPrepped, setIsPrepped] = React.useState(false);
+          const [currentClick, setCurrentClick] = React.useState(recommendedClick);
+          const [laps, setLaps] = React.useState([]);
+          const [dripPhase, setDripPhase] = React.useState(0);
+          const timerRef = React.useRef(null);
+
+          React.useEffect(() => { setCurrentClick(recommendedClick); }, [recommendedClick]);
+
+          const triggerSoundAndVibrate = (freq = 880, duration = 0.12) => {
+            playBeep(freq, duration);
+            if (navigator.vibrate) navigator.vibrate(80);
+          };
+
+          React.useEffect(() => {
+            if (preStartCountdown === null) return;
+            if (preStartCountdown > 0) {
+              triggerSoundAndVibrate(600, 0.1);
+              const timer = setTimeout(() => setPreStartCountdown(c => c - 1), 1000);
+              return () => clearTimeout(timer);
+            } else if (preStartCountdown === 0) {
+              playChime();
+              if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+              setIsRunning(true);
+              timerRef.current = setInterval(() => { 
+                setTime(t => t + 1); 
+                setPhaseTime(pt => pt + 1); 
+              }, 1000);
+              setPreStartCountdown(null);
+            }
+          }, [preStartCountdown]);
+
+          React.useEffect(() => {
+            if (method === 'espresso' && isRunning) {
+              if (time === 5 || time === 6 || time === 7) {
+                triggerSoundAndVibrate(700, 0.08);
+              } else if (time === 8) {
+                playChime();
+              }
+            }
+          }, [time, method, isRunning]);
+
+          React.useEffect(() => {
+            if (method === 'drip' && isRunning && dripTargets[dripPhase]) {
+              const targetSec = parseTargetTime(dripTargets[dripPhase]?.target);
+              if (targetSec !== null) {
+                const remain = targetSec - phaseTime;
+                if (remain === 3 || remain === 2 || remain === 1) {
+                  triggerSoundAndVibrate(800, 0.08);
+                } else if (remain === 0) {
+                  playChime();
+                }
+              }
+            }
+          }, [phaseTime, dripPhase, method, isRunning, dripTargets]);
+
+          const startTimer = () => { if (preStartCountdown === null && !isRunning) setPreStartCountdown(3); };
+          const stopTimer = () => { 
+            setIsRunning(false); 
+            clearInterval(timerRef.current); 
+            playChime();
+            onComplete(time, currentClick, laps); 
+          };
+          React.useEffect(() => () => clearInterval(timerRef.current), []);
+
+          const isPreInfusion = method === 'espresso' && isRunning && time <= 8;
+
+          const handleLap = () => {
+            triggerSoundAndVibrate(900, 0.1);
+            setLaps([...laps, { phase: dripPhase, time }]);
+            setDripPhase(p => p + 1);
+            setPhaseTime(0);
+          };
+
+          if (!isPrepped) {
+            if (method === 'espresso') return (
+              <div className="space-y-6 h-full flex flex-col">
+                <div className="flex items-center gap-2 mb-2"><button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button><h2 className="text-xl font-bold text-white">추출 준비 (에스프레소)</h2></div>
+                <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
+                  <div className="bg-orange-900/20 p-6 rounded-full"><Flame size={64} className="text-orange-500" /></div>
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-bold text-white">포터필터 공추출 예열</h3>
+                    <p className="text-neutral-400 text-sm px-4 leading-relaxed">
+                      밤비노 플러스는 그룹헤드와 포터필터가 차가우면 신맛이 튑니다. <br/>
+                      <span className="text-amber-400 font-bold">빈 포터필터를 체결하고 1CUP 버튼으로 뜨거운 물을 1회 통과</span>시킨 뒤 바스켓 물기를 마른 천으로 닦아주세요.
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setIsPrepped(true)} className="w-full bg-orange-600 hover:bg-orange-500 active:scale-95 text-white font-bold text-xl py-5 rounded-2xl shadow-lg">예열 및 건조 완료</button>
+              </div>
+            );
+            return (
+              <div className="space-y-6 h-full flex flex-col">
+                <div className="flex items-center gap-2 mb-2"><button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button><h2 className="text-xl font-bold text-white">추출 준비 (하리오 스위치)</h2></div>
+                <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="bg-blue-900/20 p-6 rounded-full"><Droplets size={64} className="text-blue-400" /></div>
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-bold text-white">{bean?.name} 맞춤 세팅</h3>
+                    <div className="inline-block bg-neutral-800 border border-neutral-700 px-4 py-2 rounded-xl text-left text-xs space-y-1 my-2">
+                      <p className="text-amber-400 font-bold">🌡️ 추천 수온: {roast?.temp}</p>
+                      <p className="text-neutral-300">⚖️ 도징 비율: 원두 13g / 총 물량 200ml</p>
+                      <p className="text-neutral-400">💡 {roast?.note}</p>
+                    </div>
+                    <p className="text-neutral-400 text-xs px-4 leading-relaxed">
+                      종이 필터를 린싱하여 종이 맛을 빼고 드리퍼를 데운 뒤, <span className="text-amber-400 font-bold">서버에 고인 물은 반드시 버려주세요.</span>
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setIsPrepped(true)} className="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xl py-5 rounded-2xl shadow-lg">린싱 및 물 버리기 완료</button>
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-5 h-full flex flex-col">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
+                  <h2 className="text-lg font-bold text-white">{bean?.name}</h2>
+                </div>
+                <div className="flex items-center gap-2 bg-neutral-800 px-3 py-1 rounded-full text-xs font-mono">
+                  <span className="text-amber-400 font-bold">수온 {roast?.temp}</span>
+                </div>
+              </div>
+              
+              <div className="bg-neutral-800 border border-neutral-700 p-4 rounded-2xl">
+                <div className="flex justify-between items-center">
+                  <div className="text-center px-4"><p className="text-[11px] text-neutral-400">추천 클릭</p><span className="text-2xl font-bold text-neutral-500">{recommendedClick}</span></div>
+                  <div className="w-px h-10 bg-neutral-700"></div>
+                  <div className="text-center flex flex-col items-center">
+                    <p className="text-[11px] text-amber-500 font-bold mb-1">적용할 클릭 (미세조정)</p>
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => setCurrentClick(c => c - 1)} className="text-neutral-400 active:scale-90"><MinusCircle size={26} /></button>
+                      <span className="text-3xl font-black text-amber-500 w-12 text-center">{currentClick}</span>
+                      <button onClick={() => setCurrentClick(c => c + 1)} className="text-neutral-400 active:scale-90"><PlusCircle size={26} /></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 flex flex-col items-center justify-center py-1">
+                <div className="text-neutral-400 text-xs font-medium mb-1 flex items-center gap-1">
+                  <Volume2 size={14} className="text-amber-500" /> 사운드 알림 켜짐 · 전체 시간
+                </div>
+                {preStartCountdown !== null && preStartCountdown > 0 ? (
+                  <div className="text-9xl font-black text-amber-500 animate-ping my-4">{preStartCountdown}</div>
+                ) : (
+                  <div className={`text-8xl font-mono font-light tracking-tighter ${isPreInfusion ? 'text-amber-400 animate-pulse' : 'text-white'}`}>
+                    {Math.floor(time / 60)}:{(time % 60).toString().padStart(2, '0')}
+                  </div>
+                )}
+                
+                <div className="h-14 flex items-center justify-center mt-2 w-full">
+                  {isRunning && method === 'drip' && (() => {
+                    const targetSec = parseTargetTime(dripTargets[dripPhase]?.target);
+                    if (targetSec !== null) {
+                      const remain = targetSec - phaseTime;
+                      if (remain <= 3 && remain > 0) return <div className="text-5xl font-black text-red-500 animate-ping">-{remain}</div>;
+                      if (remain <= 0) return <div className="text-xl font-bold text-emerald-400 animate-pulse">지금 다음 단계 진행!</div>;
+                      return <div className="text-sm text-neutral-300 font-mono bg-neutral-800 px-4 py-1.5 rounded-full border border-neutral-700">대기 시간: <span className="text-amber-400 font-bold">{remain}초</span> 남음</div>;
+                    }
+                    return null;
+                  })()}
+                </div>
+
+                <div className="mt-2 flex flex-col items-center justify-center w-full text-center">
+                  {isPreInfusion && (
+                    <div className="space-y-1">
+                      <p className="text-amber-400 font-bold bg-amber-900/30 px-4 py-1.5 rounded-full text-sm">⏳ 8초 저압 프리인퓨전 중</p>
+                      {8 - time <= 3 && 8 - time > 0 && <p className="text-2xl font-black text-red-500 animate-bounce">{8 - time}초 후 손 떼세요!</p>}
+                      {8 - time === 0 && <p className="text-xl font-bold text-emerald-400">손 떼기 완료 (본추출 진입)</p>}
+                    </div>
+                  )}
+
+                  {isRunning && method === 'drip' && dripTargets[dripPhase] && (
+                    <p className="text-amber-300 font-medium bg-amber-950/40 border border-amber-800/60 px-4 py-2.5 rounded-xl w-full max-w-sm mb-2 text-xs shadow-md">
+                      👉 {dripTargets[dripPhase].hint}
+                    </p>
+                  )}
+
+                  {isRunning && method === 'drip' && (
+                    <div className="w-full mt-2">
+                      <div className="flex flex-wrap justify-center gap-1.5 mb-3 bg-neutral-950 p-2 rounded-xl">
+                        {dripTargets.map((t, i) => (
+                          <div key={i} className={`flex flex-col items-center p-1.5 rounded-lg w-16 text-[10px] ${dripPhase === i ? 'bg-amber-600 text-white font-bold' : 'text-neutral-500'}`}>
+                            <span>{t.label}</span>
+                            <span className="font-mono">{t.target}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {dripPhase < dripTargets.length - 1 ? (
+                        <button onClick={handleLap} className="w-full bg-amber-600 hover:bg-amber-500 active:scale-[0.98] text-white font-bold text-base py-3.5 rounded-xl shadow-lg">구간 확인 및 다음 단계</button>
+                      ) : (
+                        <button onClick={stopTimer} className="w-full bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white font-bold text-base py-3.5 rounded-xl shadow-lg">물 빠짐 완료 (추출 종료)</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-auto">
+                {!isRunning ? (
+                  <button onClick={startTimer} disabled={preStartCountdown !== null} className={`w-full font-bold text-xl py-5 rounded-2xl flex items-center justify-center gap-2 shadow-lg ${preStartCountdown !== null ? 'bg-neutral-700 text-neutral-500' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>
+                    <Play size={28} /> {preStartCountdown !== null ? '준비 중...' : '추출 시작'}
+                  </button>
+                ) : method === 'espresso' && (
+                  <button onClick={stopTimer} className="w-full bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-xl py-5 rounded-2xl flex items-center justify-center gap-2 shadow-lg">
+                    <Square size={28} /> 36g 도달 (추출 정지)
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        // 6. 히스토리 탭
+        function HistoryTab({ history }) {
+          const [filter, setFilter] = React.useState('all');
+          const espressoCount = history.filter(log => log.method === 'espresso').length;
+          const dripCount = history.filter(log => log.method === 'drip').length;
+          const filteredHistory = history.filter(log => filter === 'all' || log.method === filter);
+
+          if (history.length === 0) return <div className="text-center py-20 text-neutral-500">아직 추출 기록이 없습니다.</div>;
+
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-2xl font-bold text-white">추출 기록</h2>
+                <div className="flex bg-neutral-800 rounded-lg p-1">
+                  <button onClick={() => setFilter('all')} className={`px-3 py-1 text-sm rounded-md ${filter === 'all' ? 'bg-amber-600 text-white' : 'text-neutral-400'}`}>전체</button>
+                  <button onClick={() => setFilter('espresso')} className={`px-3 py-1 text-sm rounded-md ${filter === 'espresso' ? 'bg-amber-600 text-white' : 'text-neutral-400'}`}>에소</button>
+                  <button onClick={() => setFilter('drip')} className={`px-3 py-1 text-sm rounded-md ${filter === 'drip' ? 'bg-amber-600 text-white' : 'text-neutral-400'}`}>드립</button>
+                </div>
+              </div>
+              <div className="flex gap-4 mb-4 text-xs font-medium text-neutral-400">
+                <div className="bg-neutral-800 px-3 py-1.5 rounded-md">누적 에쏘 <span className="text-amber-500 font-bold">{espressoCount}잔</span></div>
+                <div className="bg-neutral-800 px-3 py-1.5 rounded-md">누적 드립 <span className="text-amber-500 font-bold">{dripCount}잔</span></div>
+              </div>
+              <div className="space-y-4">
+                {filteredHistory.map(log => (
+                  <div key={log.id} className="bg-neutral-800 border border-neutral-700 rounded-xl p-4 shadow-sm">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="px-2 py-0.5 bg-neutral-700 text-neutral-300 text-[10px] rounded font-bold uppercase">{log.method === 'espresso' ? '에스프레소' : '드립'}</span>
+                          {log.taste === 'sour' && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">신맛 감지</span>}
+                          {log.taste === 'bitter' && <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">쓴맛 감지</span>}
+                          {log.taste === 'good' && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">맛있음</span>}
+                        </div>
+                        <h3 className="font-bold text-white text-lg">{log.bean}</h3>
+                        <p className="text-xs text-neutral-400">{log.date} · {log.grinder}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-mono font-bold text-amber-500">{log.time}s</div>
+                        <div className="text-sm text-neutral-400">{log.click} 클릭</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 p-3 rounded-lg text-xs bg-neutral-900/60 border border-neutral-700">
+                      <p className="font-semibold text-amber-300 mb-1">{log.evaluation.message}</p>
+                      <p className="text-neutral-400 leading-relaxed">{log.evaluation.tip}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        // 7. 추천값 비교 탭
+        function RecsTab({ beans, recommendations }) {
+          const getDefaults = (roastId) => ROAST_LEVELS.find(r => r.id === roastId) || {};
+          return (
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-white mb-1">추천 분쇄도 표</h2>
+              <p className="text-xs text-neutral-400 mb-4">원두별 최초 기본값과, 실제 추출 및 맛 평가로 갱신된 현재 추천값입니다.</p>
+              <div className="space-y-4">
+                {beans.map(bean => {
+                  const def = getDefaults(bean.roast);
+                  const renderVal = (m, g, d) => {
+                    const c = recommendations[`${bean.id}_${m}_${g}`];
+                    return c && c !== d ? (
+                      <div className="flex items-center gap-1"><span className="text-neutral-500 line-through text-xs font-mono">{d}</span><ChevronRight size={12} /><span className="text-amber-500 font-bold font-mono text-base">{c}</span></div>
+                    ) : <span className="text-white font-bold font-mono text-base">{d || '-'}</span>;
+                  };
+
+                  return (
+                    <div key={bean.id} className="bg-neutral-800 border border-neutral-700 rounded-xl p-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-bold text-white text-lg">{bean.name}</h3>
+                        <div className="text-right">
+                          <span className="text-xs text-amber-500 font-bold">{def.label}</span>
+                          <span className="text-[10px] text-neutral-400 block font-mono">수온 {def.temp}</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-neutral-900 p-3 rounded-lg"><div className="text-[10px] text-neutral-400 mb-1">에스프레소 (18g)</div><div className="flex justify-between text-xs"><span>A2</span>{renderVal('espresso','a2',def.a2Esp)}</div><div className="flex justify-between text-xs mt-1"><span>M40</span>{renderVal('espresso','m40',def.m40Esp)}</div></div>
+                        <div className="bg-neutral-900 p-3 rounded-lg"><div className="text-[10px] text-neutral-400 mb-1">드립 (스위치 13g)</div><div className="flex justify-between text-xs"><span>A2</span>{renderVal('drip','a2',def.a2Drip)}</div><div className="flex justify-between text-xs mt-1"><span>M40</span>{renderVal('drip','m40',def.m40Drip)}</div></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        // 8. 설정 및 백업 탭
+        function SettingsTab({ beans, history, recommendations, onRestore }) {
+          const [email, setEmail] = React.useState(() => {
+            try { return localStorage.getItem('user-backup-email') || ''; } catch(e) { return ''; }
+          });
+          const fileInputRef = React.useRef(null);
+
+          React.useEffect(() => {
+            try { localStorage.setItem('user-backup-email', email); } catch(e) {}
+          }, [email]);
+
+          const handleExportJSON = () => {
+            const data = { beans, history, recommendations, version: '1.4.0', exportedAt: new Date().toISOString() };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `coffee_dialin_backup_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+          };
+
+          const handleImportJSON = (e) => {
+            const fileReader = new FileReader();
+            if (e.target.files[0]) {
+              fileReader.readAsText(e.target.files[0], "UTF-8");
+              fileReader.onload = (event) => {
+                try {
+                  const parsed = JSON.parse(event.target.result);
+                  onRestore(parsed);
+                } catch (err) { alert('올바른 백업 파일 형식이 아닙니다.'); }
+              };
+            }
+          };
+
+          const handleSendEmail = () => {
+            if (!email.trim()) { alert('전송할 메일 주소를 먼저 입력해 주세요.'); return; }
+            const data = { beans, history, recommendations };
+            const jsonString = JSON.stringify(data, null, 2);
+            const subject = encodeURIComponent('[Coffee Tracker] 데이터 백업');
+            const body = encodeURIComponent(`백업 데이터:\n\n${jsonString}`);
+            window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+          };
+
+          return (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-white mb-2">백업 및 설정</h2>
+              <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-4 space-y-4">
+                <h3 className="font-bold text-white text-base flex items-center gap-2"><Download size={18} className="text-amber-500" /> 백업 파일(.json) 다운로드</h3>
+                <button onClick={handleExportJSON} className="w-full bg-neutral-700 hover:bg-neutral-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm">
+                  <Download size={16} /> 파일 백업하기
+                </button>
+              </div>
+              <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-4 space-y-3">
+                <h3 className="font-bold text-white text-base flex items-center gap-2"><Mail size={18} className="text-amber-500" /> 이메일로 백업 전송</h3>
+                <input type="email" placeholder="본인 메일 주소 입력" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-white text-xs" />
+                <button onClick={handleSendEmail} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm">
+                  <Mail size={16} /> 메일로 전송
+                </button>
+              </div>
+              <div className="bg-neutral-800 border border-neutral-700 rounded-xl p-4 space-y-4">
+                <h3 className="font-bold text-white text-base flex items-center gap-2"><Upload size={18} className="text-amber-500" /> 데이터 가져오기 (복원)</h3>
+                <input type="file" ref={fileInputRef} onChange={handleImportJSON} accept=".json" className="hidden" />
+                <button onClick={() => fileInputRef.current.click()} className="w-full bg-neutral-700 hover:bg-neutral-600 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm">
+                  <Upload size={16} /> 백업 파일 불러오기
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        // React 18 루트 렌더링
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
