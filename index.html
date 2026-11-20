@@ -162,6 +162,50 @@
               { label: "3차 주수", target: `${200 * mult}g`, hint: `${200 * mult}g까지 부은 후 스며들기 대기` },
               { label: "배수 완료", target: "완료", hint: "물이 모두 빠지면 완료 버튼 누르기" }
             ],
+            hoffmann: [
+              { label: "1차 주수 & 스월링", target: `${40 * mult}g`, hint: `스위치 열림(OPEN) | ${40 * mult}g 주수 후 가볍게 흔들기` },
+              { label: "뜸 대기", target: "45초", hint: "45초까지 원두 가스 배출 및 뜸들이기" },
+              { label: "2차 주수", target: `${80 * mult}g`, hint: `${80 * mult}g까지 천천히 나선형 주수` },
+              { label: "3차 주수", target: `${120 * mult}g`, hint: `${120 * mult}g까지 주수 (수위 일정 유지)` },
+              { label: "4차 주수", target: `${160 * mult}g`, hint: `${160 * mult}g까지 주수` },
+              { label: "5차 주수 & 스월링", target: `${200 * mult}g`, hint: `${200 * mult}g까지 부은 뒤 가볍게 흔들고 배수` },
+              { label: "배수 완료", target: "완료", hint: "물이 모두 빠지면 완료 버튼 누르기" }
+            ],
+            devil: mult === 1 ? [
+              { label: "1차 투과(고온수)", target: "40g", hint: `스위치 OPEN (${r.temp} 고온수) | 40g 붓고 30초 뜸들이기` },
+              { label: "뜸 대기", target: "30초", hint: "30초 대기 (포트에 찬물 섞어 70℃로 식힐 준비)" },
+              { label: "2차 투과(고온수)", target: "120g", hint: "스위치 OPEN 상태 유지 | 120g까지 고온수 주수" },
+              { label: "스위치 닫고 저온수 주수", target: "200g", hint: "스위치 CLOSE 후 70℃ 미지근한 물로 200g까지 주수" },
+              { label: "저온 침출 대기", target: "30초", hint: "30초간 떫은맛 없이 단맛만 우려낸 뒤 스위치 OPEN" },
+              { label: "배수 완료", target: "완료", hint: "물이 다 빠지면 완료 버튼 누르기" }
+            ] : [
+              { label: "1차 투과(고온수)", target: "80g", hint: `스위치 OPEN (${r.temp} 고온수) | 80g 붓고 35초 뜸` },
+              { label: "뜸 대기", target: "35초", hint: "35초 대기 (포트 물 온도를 70℃로 낮출 준비)" },
+              { label: "2차 투과(고온수)", target: "220g", hint: "스위치 OPEN 상태 유지 | 220g까지 고온수 주수" },
+              { label: "스위치 닫고 저온수 주수", target: "400g", hint: "스위치 CLOSE 후 70℃ 물로 400g까지 주수" },
+              { label: "저온 침출 대기", target: "30초", hint: "30초 침출 후 스위치 OPEN 하여 배수 시작" },
+              { label: "배수 완료", target: "완료", hint: "물이 다 빠지면 완료 버튼 누르기" }
+            ],
+            fiftyFifty: mult === 1 ? [
+              { label: "1차 전량 투과 주수", target: "100g", hint: "스위치 열림(OPEN) | 100g을 한 번에 붓고 물 빠짐 대기" },
+              { label: "1차 배수 대기", target: "45초", hint: "45초 도달 시 스위치 밸브 닫기(CLOSE)" },
+              { label: "스위치 닫고 2차 주수", target: "200g", hint: "스위치 닫힘(CLOSE) 확인 후 나머지 100g(총 200g) 주수" },
+              { label: "침출 대기", target: "1분 15초", hint: "전체 시간 2분(1분 15초 추가)까지 침출 후 스위치 OPEN" },
+              { label: "배수 완료", target: "완료", hint: "배수 완료 시 버튼 누르기" }
+            ] : [
+              { label: "1차 투과 주수", target: "200g", hint: "스위치 열림(OPEN) | 200g을 한 번에 붓고 물 빠짐 대기" },
+              { label: "1차 배수 대기", target: "50초", hint: "50초 도달 시 스위치 밸브 닫기(CLOSE)" },
+              { label: "스위치 닫고 2차 주수", target: "400g", hint: "스위치 닫힘(CLOSE) 확인 후 총 400g까지 주수" },
+              { label: "침출 대기", target: "1분 15초", hint: "1분 15초 침출 후 스위치 OPEN 하여 배수" },
+              { label: "배수 완료", target: "완료", hint: "배수 완료 시 버튼 누르기" }
+            ],
+            iced: [
+              { label: "얼음 세팅 & 1차 주수", target: `${60 * mult}g`, hint: `서버에 얼음 ${70 * mult}g 준비! 스위치 CLOSE 후 뜨거운 물 ${60 * mult}g 주수` },
+              { label: "진한 뜸 대기", target: "40초", hint: "40초 동안 가스를 빼며 진하게 뜸들이기" },
+              { label: "2차 뜨거운 물 주수", target: `${130 * mult}g`, hint: `스위치 닫힘 유지 | 총 ${130 * mult}g까지 뜨거운 물 추가 주수` },
+              { label: "고농도 침출 대기", target: "1분", hint: "1분간 진하게 우려낸 뒤 스위치 OPEN (얼음 위로 급랭!)" },
+              { label: "급랭 배수 완료", target: "완료", hint: "얼음 위로 커피가 다 떨어지면 종료" }
+            ],
             hybrid: mult === 1 ? [
               { label: "1차 투과(향미)", target: "60g", hint: "스위치 열림(OPEN) | 60g 주수로 화사한 향미 추출" },
               { label: "뜸 대기", target: "35초", hint: "35초 도달 시 스위치 밸브 닫기(CLOSE) 준비" },
@@ -169,7 +213,6 @@
               { label: "침출 대기", target: "1분 30초", hint: "1분 30초에 스위치를 열어(OPEN) 배수 시작" },
               { label: "배수 완료", target: "완료", hint: "배수 완료 시 버튼 누르기" }
             ] : [
-              // 2인용(400ml)은 스위치 01 용량 넘침 방지를 위해 분할 하이브리드 적용
               { label: "1차 투과(향미)", target: "120g", hint: "스위치 열림(OPEN) | 120g까지 투과 주수" },
               { label: "뜸 대기", target: "40초", hint: "물 빠짐 확인 후 스위치 닫기(CLOSE) 준비" },
               { label: "스위치 닫고 2차 주수", target: "280g", hint: "스위치 닫고 280g까지 주수 (01드리퍼 넘침 주의!)" },
@@ -361,10 +404,10 @@
                 
                 <div className="bg-neutral-800 border-2 border-neutral-700 rounded-2xl p-4 space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-full bg-neutral-700 text-amber-500"><TimerIcon size={28} /></div>
+                    <div className="p-2.5 rounded-full bg-amber-500/20 text-amber-500"><TimerIcon size={24} /></div>
                     <div>
                       <p className="font-bold text-white text-lg">드립 (하리오 스위치)</p>
-                      <p className="text-xs text-neutral-400">개별 진공포장 13g 단위 맞춤 브루잉</p>
+                      <p className="text-xs text-neutral-400">진공포장 팩 수에 맞춰 인원수를 선택하세요</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2.5 pt-1">
@@ -696,36 +739,58 @@
               </div>
 
               <div className="grid grid-cols-1 gap-3">
-                <div onClick={() => onSelect('golden', dynamicRecipes.golden)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500">
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="font-bold text-white text-lg">골든컵 (투과식 모드)</p>
-                    <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">{servings === 2 ? '2인용 강력 추천' : '스위치 상시 개방'}</span>
+                <div onClick={() => onSelect('golden', dynamicRecipes.golden)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 transition-colors">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <p className="font-bold text-white text-base">1. 정석 골든컵 (투과식)</p>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">깔끔·밸런스</span>
                   </div>
-                  <p className="text-xs text-neutral-400 leading-relaxed">{40 * mult}g 뜸들이기 후 {120 * mult}g ➔ {200 * mult}g 다단 주수</p>
+                  <p className="text-xs text-neutral-300 leading-relaxed mb-1">스위치를 계속 열어두고 3번에 나누어 붓는 기본 브루잉입니다. 잡미 없이 깔끔하고 정직한 원두 본연의 맛을 내줍니다.</p>
+                  <p className="text-[11px] text-neutral-500 font-mono">과정: {40 * mult}g 뜸 ➔ {120 * mult}g ➔ {200 * mult}g</p>
                 </div>
 
-                <div onClick={() => onSelect('hybrid', dynamicRecipes.hybrid)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 border-l-4 border-l-amber-500">
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="font-bold text-white text-lg flex items-center gap-1.5"><Sparkles size={16} className="text-amber-500" /> 스위치 하이브리드</p>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">챔피언 스타일</span>
+                <div onClick={() => onSelect('devil', dynamicRecipes.devil)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 border-l-4 border-l-red-500 transition-colors">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <p className="font-bold text-white text-base flex items-center gap-1.5"><Flame size={15} className="text-red-500" /> 2. 신의 레시피 (온도 변주 하이브리드)</p>
+                    <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold">단맛 극대화</span>
                   </div>
-                  <p className="text-xs text-neutral-400 leading-relaxed">
-                    {servings === 1 
-                      ? '앞쪽 60g은 투과(화사한 산미) + 뒤쪽 140g은 닫아서 침출(달콤한 바디)'
-                      : '01 드리퍼 용량에 맞춰 120g 투과 후 280g/400g 분할 침출'}
-                  </p>
+                  <p className="text-xs text-neutral-300 leading-relaxed mb-1">유튜브 화제의 레시피! 전반부엔 고온수({roast.temp})로 화사한 향미를 뽑고, 후반부엔 70℃ 미지근한 물로 스위치를 닫아 침출해 떫은맛 0%, 극강의 단맛을 만듭니다.</p>
+                  <p className="text-[11px] text-neutral-500 font-mono">과정: 고온 {40 * mult}g/{120 * mult}g 투과 ➔ 70℃ {200 * mult}g 닫고 30초 침출</p>
                 </div>
 
-                <div onClick={() => onSelect('immersion', dynamicRecipes.immersion)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500">
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="font-bold text-white text-lg">완전 침출식 (Full Immersion)</p>
-                    <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold">잡미 차단</span>
+                <div onClick={() => onSelect('fiftyFifty', dynamicRecipes.fiftyFifty)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 border-l-4 border-l-emerald-500 transition-colors">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <p className="font-bold text-white text-base flex items-center gap-1.5"><Sparkles size={15} className="text-emerald-400" /> 3. 50/50 원푸어 레시피</p>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">초간단·실패제로</span>
                   </div>
-                  <p className="text-xs text-neutral-400 leading-relaxed">
-                    {servings === 1
-                      ? `밸브 닫고 200g 일괄 주수 ➔ ${roast.id === 'dark' ? '1분 45초' : '2분 15초'} 침출 후 배수`
-                      : '넘침 방지를 위해 250g 1차 침출(1분) 후 400g 2차 침출(1분) 진행'}
-                  </p>
+                  <p className="text-xs text-neutral-300 leading-relaxed mb-1">물줄기 컨트롤이 전혀 필요 없는 아침용 치트키입니다. 절반은 열고 붓고, 절반은 닫고 부어 산미와 바디감의 황금 비율을 냅니다.</p>
+                  <p className="text-[11px] text-neutral-500 font-mono">과정: {100 * mult}g 투과(45초) ➔ 닫고 {200 * mult}g 침출(2분까지)</p>
+                </div>
+
+                <div onClick={() => onSelect('hoffmann', dynamicRecipes.hoffmann)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 transition-colors">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <p className="font-bold text-white text-base">4. 호프만 5단 주수 (1-Cup V60)</p>
+                    <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-bold">약배전·수율극대화</span>
+                  </div>
+                  <p className="text-xs text-neutral-300 leading-relaxed mb-1">물을 조금씩 5번에 나누어 부어 추출 수율을 끝까지 끌어올립니다. 단단한 약배전 원두의 꽃향기와 복합적인 산미를 뽑을 때 최고입니다.</p>
+                  <p className="text-[11px] text-neutral-500 font-mono">과정: {40 * mult}g씩 5회 분할 주수 + 스월링</p>
+                </div>
+
+                <div onClick={() => onSelect('iced', dynamicRecipes.iced)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 border-l-4 border-l-cyan-400 transition-colors">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <p className="font-bold text-white text-base flex items-center gap-1.5"><Droplets size={15} className="text-cyan-400" /> 5. 아이스 스위치 급랭 레시피</p>
+                    <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded font-bold">시원·아로마잠금</span>
+                  </div>
+                  <p className="text-xs text-neutral-300 leading-relaxed mb-1">서버에 얼음({70 * mult}g)을 미리 깔아두고, 스위치 안에서 진하게 농축 침출한 뜨거운 커피({130 * mult}ml)를 얼음 위에 직하시켜 향 손실 없이 급랭합니다.</p>
+                  <p className="text-[11px] text-neutral-500 font-mono">과정: 얼음 {70 * mult}g 세팅 ➔ 닫고 {60 * mult}g/{130 * mult}g 진하게 침출</p>
+                </div>
+
+                <div onClick={() => onSelect('immersion', dynamicRecipes.immersion)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 transition-colors">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <p className="font-bold text-white text-base">6. 완전 침출식 (Full Immersion)</p>
+                    <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold">묵직·부드러움</span>
+                  </div>
+                  <p className="text-xs text-neutral-300 leading-relaxed mb-1">프렌치프레스처럼 밸브를 닫고 물을 한 번에 부어 우려낸 뒤 종이 필터로 깔끔하게 걸러냅니다. 자극적인 맛 없이 부드럽고 묵직합니다.</p>
+                  <p className="text-[11px] text-neutral-500 font-mono">과정: 닫고 {200 * mult}g 일괄 주수 ➔ {roast.id === 'dark' ? '1분 45초' : '2분 15초'} 대기</p>
                 </div>
 
                 <div onClick={() => setCustomMode(true)} className="border-2 border-dashed border-neutral-700 p-4 rounded-xl flex items-center gap-3 text-neutral-400 cursor-pointer hover:border-neutral-500">
