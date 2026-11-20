@@ -27,7 +27,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // 1. 순수 SVG 아이콘 컴포넌트 (외부 라이브러리 충돌 및 React Error #130 원천 방지)
+        // 1. 순수 SVG 아이콘 컴포넌트
         const Icon = ({ size = 20, className = "", children, ...props }) => (
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -46,7 +46,7 @@
           </svg>
         );
 
-        const Coffee = (p) => <Icon {...p}><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="1" y2="4"/></Icon>;
+        const Coffee = (p) => <Icon {...p}><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></Icon>;
         const TimerIcon = (p) => <Icon {...p}><line x1="10" y1="2" x2="14" y2="2"/><line x1="12" y1="14" x2="15" y2="11"/><circle cx="12" cy="14" r="8"/></Icon>;
         const HistoryIcon = (p) => <Icon {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></Icon>;
         const Plus = (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Icon>;
@@ -65,8 +65,9 @@
         const Mail = (p) => <Icon {...p}><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></Icon>;
         const Sparkles = (p) => <Icon {...p}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></Icon>;
         const Volume2 = (p) => <Icon {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></Icon>;
+        const Users = (p) => <Icon {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Icon>;
 
-        // 2. Web Audio API 사운드 알림 (외부 사운드 파일 없이 브라우저 자체 합성 비프음)
+        // 2. Web Audio API 사운드 알림
         const playBeep = (freq = 880, duration = 0.12, type = 'sine') => {
           try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -91,7 +92,7 @@
           setTimeout(() => playBeep(783.99, 0.25), 200);
         };
 
-        // 3. 배전도별 동적 프로필 (수온, 뜸시간, 권장 클릭수)
+        // 3. 배전도별 동적 프로필
         const ROAST_LEVELS = [
           { 
             id: 'dark', 
@@ -148,28 +149,43 @@
           { id: 'm40', name: '미스치프 M40 (RC)' }
         ];
 
-        const getDynamicRecipes = (roastId) => {
+        // 1인용(13g/200ml) vs 2인용(26g/400ml) 동적 레시피 생성기
+        const getDynamicRecipes = (roastId, servings = 1) => {
           const r = ROAST_LEVELS.find(lvl => lvl.id === roastId) || ROAST_LEVELS[2];
+          const mult = servings; // 1 또는 2
+          
           return {
             golden: [
-              { label: "1차 뜸들이기", target: "40g", hint: `스위치 열림(V60) | 40g 붓고 ${r.bloomSec}초 뜸들이기` },
-              { label: "뜸 대기", target: `${r.bloomSec}초`, hint: `${r.bloomSec}초 동안 원두 조직 열기` },
-              { label: "2차 주수", target: "120g", hint: "120g까지 부드럽게 중심에서 나선형 주수" },
-              { label: "3차 주수", target: "200g", hint: "200g까지 부은 후 스며들기 대기" },
+              { label: "1차 뜸들이기", target: `${40 * mult}g`, hint: `스위치 열림(V60) | ${40 * mult}g 붓고 ${r.bloomSec}초 뜸들이기` },
+              { label: "뜸 대기", target: `${r.bloomSec}초`, hint: `${r.bloomSec}초 동안 원두층 전체를 충분히 불리기` },
+              { label: "2차 주수", target: `${120 * mult}g`, hint: `${120 * mult}g까지 부드럽게 나선형 주수` },
+              { label: "3차 주수", target: `${200 * mult}g`, hint: `${200 * mult}g까지 부은 후 스며들기 대기` },
               { label: "배수 완료", target: "완료", hint: "물이 모두 빠지면 완료 버튼 누르기" }
             ],
-            hybrid: [
+            hybrid: mult === 1 ? [
               { label: "1차 투과(향미)", target: "60g", hint: "스위치 열림(OPEN) | 60g 주수로 화사한 향미 추출" },
               { label: "뜸 대기", target: "35초", hint: "35초 도달 시 스위치 밸브 닫기(CLOSE) 준비" },
               { label: "스위치 닫기 & 주수", target: "200g", hint: "스위치 닫고(CLOSE) 200g까지 부어 단맛 침출" },
               { label: "침출 대기", target: "1분 30초", hint: "1분 30초에 스위치를 열어(OPEN) 배수 시작" },
               { label: "배수 완료", target: "완료", hint: "배수 완료 시 버튼 누르기" }
+            ] : [
+              // 2인용(400ml)은 스위치 01 용량 넘침 방지를 위해 분할 하이브리드 적용
+              { label: "1차 투과(향미)", target: "120g", hint: "스위치 열림(OPEN) | 120g까지 투과 주수" },
+              { label: "뜸 대기", target: "40초", hint: "물 빠짐 확인 후 스위치 닫기(CLOSE) 준비" },
+              { label: "스위치 닫고 2차 주수", target: "280g", hint: "스위치 닫고 280g까지 주수 (01드리퍼 넘침 주의!)" },
+              { label: "1차 개방 & 3차 주수", target: "400g", hint: "스위치를 열어 반쯤 배수 후 다시 닫고 400g까지 주수" },
+              { label: "침출 후 배수 완료", target: "완료", hint: "1분 후 스위치 완전 개방, 배수 완료 시 종료" }
             ],
-            immersion: [
+            immersion: mult === 1 ? [
               { label: "스위치 닫고 전량 주수", target: "200g", hint: "스위치 닫힘(CLOSE) 확인 후 200g 빠르게 주수" },
               { label: "침출 대기", target: r.id === 'dark' ? "1분 45초" : "2분 15초", hint: `단맛 우려내기 (목표: ${r.id === 'dark' ? "1분 45초" : "2분 15초"})` },
               { label: "스위치 개방", target: "스위치 ON", hint: "스위치 레버를 눌러 시원하게 배수 시작" },
               { label: "배수 완료", target: "완료", hint: "물이 모두 빠지면 버튼 누르기" }
+            ] : [
+              { label: "스위치 닫고 1차 주수", target: "250g", hint: "스위치 닫힘(CLOSE) | 250g 주수 후 1분간 침출" },
+              { label: "1차 침출 대기", target: "1분", hint: "1분 도달 시 스위치 열어 반쯤 배수 후 다시 닫기" },
+              { label: "스위치 닫고 2차 주수", target: "400g", hint: "나머지 물을 400g까지 부어 1분간 추가 침출" },
+              { label: "스위치 개방 & 완료", target: "완료", hint: "스위치 완전 개방 후 물이 다 빠지면 종료" }
             ]
           };
         };
@@ -213,7 +229,6 @@
 
           return (
             <div className="min-h-screen bg-neutral-900 text-neutral-100 font-sans flex flex-col">
-              {/* 상단 헤더 */}
               <header className="bg-neutral-950 p-4 border-b border-neutral-800 flex justify-between items-center sticky top-0 z-10">
                 <div className="flex items-center gap-2">
                   <Coffee className="text-amber-500" />
@@ -221,7 +236,7 @@
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-amber-500 font-mono font-bold tracking-wider">v1.4.0 Pro</span>
+                    <span className="text-[10px] text-amber-500 font-mono font-bold tracking-wider">v1.5.0 Pro</span>
                     <span className="text-[10px] text-neutral-400">{today}</span>
                   </div>
                   <button 
@@ -234,7 +249,6 @@
                 </div>
               </header>
 
-              {/* 메인 탭 컨텐츠 */}
               <main className="flex-1 overflow-y-auto p-4 pb-28">
                 {activeTab === 'brew' && (
                   <BrewWizard 
@@ -269,7 +283,6 @@
                 )}
               </main>
 
-              {/* 하단 고정 내비게이션 바 */}
               <nav className="bg-neutral-950 border-t border-neutral-800 fixed bottom-0 w-full flex justify-around p-3 pb-safe z-10">
                 <button onClick={() => setActiveTab('brew')} className={`flex flex-col items-center gap-1 w-20 ${activeTab === 'brew' ? 'text-amber-500' : 'text-neutral-500'}`}>
                   <TimerIcon size={24} /><span className="text-xs font-medium">추출</span>
@@ -292,6 +305,7 @@
         function BrewWizard({ beans, setBeans, recommendations, setRecommendations, onSaveLog }) {
           const [step, setStep] = React.useState(1);
           const [method, setMethod] = React.useState('');
+          const [servings, setServings] = React.useState(1); // 1인용(13g) vs 2인용(26g)
           const [beanId, setBeanId] = React.useState('');
           const [grinderId, setGrinderId] = React.useState('');
           const [dripRecipeType, setDripRecipeType] = React.useState('golden');
@@ -306,12 +320,20 @@
           const selectedBean = beans.find(b => b.id === beanId);
           const selectedRoast = ROAST_LEVELS.find(r => r.id === selectedBean?.roast) || ROAST_LEVELS[2];
 
-          const getDefaultClick = (bId, mthd, gId) => {
+          const getDefaultClick = (bId, mthd, gId, srv) => {
             const bean = beans.find(b => b.id === bId);
             if (!bean) return 0;
             const roastData = ROAST_LEVELS.find(r => r.id === bean.roast);
             if (!roastData) return 0;
-            return mthd === 'espresso' ? (gId === 'a2' ? roastData.a2Esp : roastData.m40Esp) : (gId === 'a2' ? roastData.a2Drip : roastData.m40Drip);
+            
+            if (mthd === 'espresso') {
+              return gId === 'a2' ? roastData.a2Esp : roastData.m40Esp;
+            } else {
+              // 2인용(26g)은 커피층이 두꺼워 저항이 크므로 기본 +4클릭(A2) / +6클릭(M40) 더 굵게 시작
+              const baseDrip = gId === 'a2' ? roastData.a2Drip : roastData.m40Drip;
+              const twoCupOffset = srv === 2 ? (gId === 'a2' ? 4 : 6) : 0;
+              return baseDrip + twoCupOffset;
+            }
           };
 
           const handleNextStep = () => {
@@ -324,13 +346,44 @@
             else setStep(s => Math.max(1, s - 1));
           };
 
-          // 1단계: 추출 방식 선택
+          // 1단계: 추출 방식 및 1인/2인용 선택
           if (step === 1) return (
-            <div className="space-y-4">
-              <h2 className="text-xl font-bold text-white mb-6">어떤 커피를 내리실 건가요?</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <SelectionCard title="에스프레소" subtitle="밤비노 플러스 (18g)" icon={<Coffee size={32} />} selected={method === 'espresso'} onClick={() => { setMethod('espresso'); handleNextStep(); }} />
-                <SelectionCard title="드립 (하리오 스위치)" subtitle="13g 맞춤 브루잉" icon={<TimerIcon size={32} />} selected={method === 'drip'} onClick={() => { setMethod('drip'); handleNextStep(); }} />
+            <div className="space-y-5">
+              <h2 className="text-xl font-bold text-white mb-4">어떤 커피를 내리실 건가요?</h2>
+              <div className="grid grid-cols-1 gap-3">
+                <SelectionCard 
+                  title="에스프레소 (밤비노 플러스)" 
+                  subtitle="18g 도징 · 36g 추출 (1잔 기준)" 
+                  icon={<Coffee size={28} />} 
+                  selected={method === 'espresso'} 
+                  onClick={() => { setMethod('espresso'); setServings(1); handleNextStep(); }} 
+                />
+                
+                <div className="bg-neutral-800 border-2 border-neutral-700 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-full bg-neutral-700 text-amber-500"><TimerIcon size={28} /></div>
+                    <div>
+                      <p className="font-bold text-white text-lg">드립 (하리오 스위치)</p>
+                      <p className="text-xs text-neutral-400">개별 진공포장 13g 단위 맞춤 브루잉</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5 pt-1">
+                    <button 
+                      onClick={() => { setMethod('drip'); setServings(1); handleNextStep(); }}
+                      className="bg-neutral-900 hover:border-amber-500 border border-neutral-700 p-3 rounded-xl text-left transition-all active:scale-95"
+                    >
+                      <span className="text-amber-500 font-bold text-sm block">1인용 (1팩)</span>
+                      <span className="text-xs text-neutral-400 font-mono">원두 13g / 물 200ml</span>
+                    </button>
+                    <button 
+                      onClick={() => { setMethod('drip'); setServings(2); handleNextStep(); }}
+                      className="bg-neutral-900 hover:border-amber-500 border border-neutral-700 p-3 rounded-xl text-left transition-all active:scale-95"
+                    >
+                      <span className="text-emerald-400 font-bold text-sm flex items-center gap-1"><Users size={14}/> 2인용 (2팩)</span>
+                      <span className="text-xs text-neutral-400 font-mono">원두 26g / 물 400ml</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           );
@@ -340,7 +393,10 @@
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
                 <button onClick={handlePrevStep} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
-                <h2 className="text-xl font-bold text-white">원두를 선택하세요</h2>
+                <div>
+                  <h2 className="text-xl font-bold text-white">원두를 선택하세요</h2>
+                  {method === 'drip' && <span className="text-xs text-amber-500 font-bold">{servings === 1 ? '1인용 (13g / 200ml)' : '2인용 (26g / 400ml) 모드'}</span>}
+                </div>
               </div>
               <div className="space-y-3">
                 {beans.map(bean => {
@@ -374,11 +430,18 @@
                 {GRINDERS.map(g => (
                   <div key={g.id} onClick={() => { 
                     setGrinderId(g.id); 
-                    const recKey = `${beanId}_${method}_${g.id}`;
-                    setRecommendedClick(recommendations[recKey] || getDefaultClick(beanId, method, g.id));
+                    const recKey = `${beanId}_${method}_${g.id}_${servings}`;
+                    const legacyKey = `${beanId}_${method}_${g.id}`;
+                    const saved = recommendations[recKey] || (servings === 1 ? recommendations[legacyKey] : null);
+                    setRecommendedClick(saved || getDefaultClick(beanId, method, g.id, servings));
                     handleNextStep(); 
                   }} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-amber-500/50">
-                    <p className="font-semibold text-white text-lg">{g.name}</p>
+                    <div>
+                      <p className="font-semibold text-white text-lg">{g.name}</p>
+                      {method === 'drip' && servings === 2 && (
+                        <p className="text-[11px] text-emerald-400 mt-0.5">2인용(26g) 저항 보정 자동 적용됨</p>
+                      )}
+                    </div>
                     <ChevronRight className="text-neutral-500" />
                   </div>
                 ))}
@@ -390,6 +453,7 @@
           if (step === 4) return (
             <RecipeSelection 
               roast={selectedRoast}
+              servings={servings}
               onBack={handlePrevStep} 
               onSelect={(type, targets) => { 
                 setDripRecipeType(type); 
@@ -403,6 +467,7 @@
           if (step === 5) return (
             <TimerSection 
               method={method} 
+              servings={servings}
               roast={selectedRoast}
               bean={selectedBean}
               recommendedClick={recommendedClick} 
@@ -447,16 +512,20 @@
                 }
               } else {
                 const finalDrawdown = adjustedTime - (lapTimes.length > 0 ? lapTimes[lapTimes.length - 1].time : 0);
-                if (finalDrawdown < 20) { 
+                // 2인용(400ml)은 물 양이 많아 배수 기준 시간이 1인용보다 10초가량 길게 잡힘
+                const minDraw = servings === 2 ? 25 : 20;
+                const maxDraw = servings === 2 ? 65 : 55;
+
+                if (finalDrawdown < minDraw) { 
                   evalResult = { status: 'fast', message: `배수가 너무 빠릅니다 (${finalDrawdown}초).`, tip: `가루가 굵어 싱거울 수 있습니다. ${clickDelta * 2}클릭 조이세요.` }; 
                   nextClick -= (clickDelta * 2); 
                 }
-                else if (finalDrawdown > 55) { 
-                  evalResult = { status: 'slow', message: `배수가 지연되었습니다 (${finalDrawdown}초).`, tip: `미분 막힘 방지를 위해 ${clickDelta * 2}클릭 풀어주세요.` }; 
+                else if (finalDrawdown > maxDraw) { 
+                  evalResult = { status: 'slow', message: `배수가 지연되었습니다 (${finalDrawdown}초).`, tip: `원두층 저항/미분 막힘 방지를 위해 ${clickDelta * 2}클릭 풀어주세요.` }; 
                   nextClick += (clickDelta * 2); 
                 }
                 else { 
-                  evalResult = { status: 'perfect', message: `완벽한 배수 시간 (${finalDrawdown}초)!`, tip: '추천 분쇄도가 원두와 완벽히 일치합니다.' }; 
+                  evalResult = { status: 'perfect', message: `완벽한 배수 시간 (${finalDrawdown}초)!`, tip: `${servings}인용 추천 분쇄도가 원두와 완벽히 일치합니다.` }; 
                 }
               }
 
@@ -468,13 +537,14 @@
                 nextClick += clickDelta;
               }
 
-              const recKey = `${beanId}_${method}_${grinderId}`;
+              const recKey = `${beanId}_${method}_${grinderId}_${servings}`;
               setRecommendations(prev => ({ ...prev, [recKey]: nextClick }));
               
               onSaveLog({
                 id: Date.now().toString(),
                 date: new Date().toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
                 method, 
+                servings: method === 'drip' ? servings : 1,
                 recipeType: method === 'drip' ? dripRecipeType : null,
                 bean: selectedBean?.name,
                 grinder: GRINDERS.find(g => g.id === grinderId)?.name,
@@ -495,7 +565,7 @@
                 </div>
 
                 <div className="bg-neutral-800 rounded-2xl p-6 flex flex-col items-center justify-center gap-4 shadow-inner">
-                  <span className="text-xs text-neutral-400">최종 추출 시간</span>
+                  <span className="text-xs text-neutral-400">최종 추출 시간 ({method === 'drip' ? `${servings}인용` : '에스프레소'})</span>
                   <div className="text-6xl font-mono font-bold text-amber-500">
                     {Math.floor(adjustedTime / 60) > 0 && <span>{Math.floor(adjustedTime / 60)}m </span>}
                     <span>{adjustedTime % 60}s</span>
@@ -541,9 +611,9 @@
 
         function SelectionCard({ title, subtitle, icon, selected, onClick }) {
           return (
-            <div onClick={onClick} className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-3 cursor-pointer transition-all ${selected ? 'border-amber-500 bg-amber-500/10' : 'border-neutral-700 bg-neutral-800'}`}>
+            <div onClick={onClick} className={`p-4 rounded-2xl border-2 flex items-center gap-4 cursor-pointer transition-all ${selected ? 'border-amber-500 bg-amber-500/10' : 'border-neutral-700 bg-neutral-800 hover:border-neutral-600'}`}>
               <div className={`p-3 rounded-full ${selected ? 'bg-amber-500/20 text-amber-500' : 'bg-neutral-700 text-neutral-400'}`}>{icon}</div>
-              <div className="text-center"><p className="font-bold text-white">{title}</p><p className="text-xs text-neutral-400 mt-0.5">{subtitle}</p></div>
+              <div className="text-left"><p className="font-bold text-white text-lg">{title}</p><p className="text-xs text-neutral-400 mt-0.5">{subtitle}</p></div>
             </div>
           );
         }
@@ -568,11 +638,13 @@
           );
         }
 
-        function RecipeSelection({ roast, onBack, onSelect }) {
+        function RecipeSelection({ roast, servings, onBack, onSelect }) {
           const [customMode, setCustomMode] = React.useState(false);
-          const dynamicRecipes = getDynamicRecipes(roast.id);
+          const dynamicRecipes = getDynamicRecipes(roast.id, servings);
+          const mult = servings;
+          
           const [customPhases, setCustomPhases] = React.useState([
-            { label: "1차 뜸들이기", target: "40g", hint: "뜸 물을 고르게 붓습니다." },
+            { label: "1차 뜸들이기", target: `${40 * mult}g`, hint: "뜸 물을 고르게 붓습니다." },
             { label: "뜸 대기", target: `${roast.bloomSec}초`, hint: "원두가 부풀어 오르기를 기다립니다." },
             { label: "물 빠짐 완료", target: "완료", hint: "물이 모두 빠지면 완료를 누르세요." }
           ]);
@@ -594,7 +666,7 @@
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
                 <button onClick={() => setCustomMode(false)} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
-                <h2 className="text-xl font-bold text-white">나만의 레시피 만들기</h2>
+                <h2 className="text-xl font-bold text-white">나만의 레시피 만들기 ({servings}인용)</h2>
               </div>
               <div className="bg-neutral-800 p-4 rounded-xl space-y-3">
                 {customPhases.map((phase, idx) => (
@@ -605,7 +677,7 @@
                 ))}
                 <div className="flex gap-2 pt-2 border-t border-neutral-700 mt-2">
                   <input type="text" placeholder="단계명" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-white text-xs" />
-                  <input type="text" placeholder="목표(예: 150g, 40초)" value={newTarget} onChange={(e) => setNewTarget(e.target.value)} className="w-24 bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-white text-xs" />
+                  <input type="text" placeholder="목표(예: 250g)" value={newTarget} onChange={(e) => setNewTarget(e.target.value)} className="w-24 bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-white text-xs" />
                   <button onClick={handleAddPhase} className="bg-neutral-700 p-2 rounded-lg text-white"><Plus size={18} /></button>
                 </div>
               </div>
@@ -618,8 +690,8 @@
               <div className="flex items-center gap-2 mb-2">
                 <button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
                 <div>
-                  <h2 className="text-xl font-bold text-white">스위치 01 레시피 선택</h2>
-                  <p className="text-xs text-amber-500 font-medium">원두 배전도 맞춤 수온: {roast.temp}</p>
+                  <h2 className="text-xl font-bold text-white">스위치 레시피 ({servings}인용 · {200 * mult}ml)</h2>
+                  <p className="text-xs text-amber-500 font-medium">원두 {13 * mult}g · 추천 수온: {roast.temp}</p>
                 </div>
               </div>
 
@@ -627,17 +699,21 @@
                 <div onClick={() => onSelect('golden', dynamicRecipes.golden)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500">
                   <div className="flex justify-between items-center mb-1">
                     <p className="font-bold text-white text-lg">골든컵 (투과식 모드)</p>
-                    <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">스위치 상시 개방</span>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">{servings === 2 ? '2인용 강력 추천' : '스위치 상시 개방'}</span>
                   </div>
-                  <p className="text-xs text-neutral-400 leading-relaxed">{roast.bloomSec}초 뜸들이기 후 3단 주수로 깨끗하고 화사한 향미 추출</p>
+                  <p className="text-xs text-neutral-400 leading-relaxed">{40 * mult}g 뜸들이기 후 {120 * mult}g ➔ {200 * mult}g 다단 주수</p>
                 </div>
 
                 <div onClick={() => onSelect('hybrid', dynamicRecipes.hybrid)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500 border-l-4 border-l-amber-500">
                   <div className="flex justify-between items-center mb-1">
                     <p className="font-bold text-white text-lg flex items-center gap-1.5"><Sparkles size={16} className="text-amber-500" /> 스위치 하이브리드</p>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">챔피언 추천</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold">챔피언 스타일</span>
                   </div>
-                  <p className="text-xs text-neutral-400 leading-relaxed">앞쪽 60g은 투과(화사한 산미) + 뒤쪽 140g은 닫아서 침출(달콤한 바디)</p>
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    {servings === 1 
+                      ? '앞쪽 60g은 투과(화사한 산미) + 뒤쪽 140g은 닫아서 침출(달콤한 바디)'
+                      : '01 드리퍼 용량에 맞춰 120g 투과 후 280g/400g 분할 침출'}
+                  </p>
                 </div>
 
                 <div onClick={() => onSelect('immersion', dynamicRecipes.immersion)} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl cursor-pointer hover:border-amber-500">
@@ -645,7 +721,11 @@
                     <p className="font-bold text-white text-lg">완전 침출식 (Full Immersion)</p>
                     <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold">잡미 차단</span>
                   </div>
-                  <p className="text-xs text-neutral-400 leading-relaxed">밸브 닫고 200g 일괄 주수 ➔ {roast.id === 'dark' ? '1분 45초' : '2분 15초'} 침출 후 원터치 배수</p>
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    {servings === 1
+                      ? `밸브 닫고 200g 일괄 주수 ➔ ${roast.id === 'dark' ? '1분 45초' : '2분 15초'} 침출 후 배수`
+                      : '넘침 방지를 위해 250g 1차 침출(1분) 후 400g 2차 침출(1분) 진행'}
+                  </p>
                 </div>
 
                 <div onClick={() => setCustomMode(true)} className="border-2 border-dashed border-neutral-700 p-4 rounded-xl flex items-center gap-3 text-neutral-400 cursor-pointer hover:border-neutral-500">
@@ -669,7 +749,7 @@
           return null;
         };
 
-        function TimerSection({ method, roast, bean, recommendedClick, dripTargets, onBack, onComplete }) {
+        function TimerSection({ method, servings, roast, bean, recommendedClick, dripTargets, onBack, onComplete }) {
           const [isRunning, setIsRunning] = React.useState(false);
           const [preStartCountdown, setPreStartCountdown] = React.useState(null);
           const [time, setTime] = React.useState(0);
@@ -766,18 +846,18 @@
             );
             return (
               <div className="space-y-6 h-full flex flex-col">
-                <div className="flex items-center gap-2 mb-2"><button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button><h2 className="text-xl font-bold text-white">추출 준비 (하리오 스위치)</h2></div>
+                <div className="flex items-center gap-2 mb-2"><button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button><h2 className="text-xl font-bold text-white">추출 준비 ({servings}인용 드립)</h2></div>
                 <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
                   <div className="bg-blue-900/20 p-6 rounded-full"><Droplets size={64} className="text-blue-400" /></div>
                   <div className="space-y-2">
-                    <h3 className="text-2xl font-bold text-white">{bean?.name} 맞춤 세팅</h3>
-                    <div className="inline-block bg-neutral-800 border border-neutral-700 px-4 py-2 rounded-xl text-left text-xs space-y-1 my-2">
+                    <h3 className="text-2xl font-bold text-white">{bean?.name}</h3>
+                    <div className="inline-block bg-neutral-800 border border-neutral-700 px-4 py-3 rounded-xl text-left text-xs space-y-1.5 my-2">
                       <p className="text-amber-400 font-bold">🌡️ 추천 수온: {roast?.temp}</p>
-                      <p className="text-neutral-300">⚖️ 도징 비율: 원두 13g / 총 물량 200ml</p>
-                      <p className="text-neutral-400">💡 {roast?.note}</p>
+                      <p className="text-emerald-400 font-bold">⚖️ 도징 비율: 원두 {13 * servings}g ({servings}팩) / 물 {200 * servings}ml</p>
+                      <p className="text-neutral-300">💡 {roast?.note}</p>
                     </div>
                     <p className="text-neutral-400 text-xs px-4 leading-relaxed">
-                      종이 필터를 린싱하여 종이 맛을 빼고 드리퍼를 데운 뒤, <span className="text-amber-400 font-bold">서버에 고인 물은 반드시 버려주세요.</span>
+                      종이 필터를 뜨거운 물로 린싱하여 종이 맛을 빼고 드리퍼를 데운 뒤, <span className="text-amber-400 font-bold">서버에 고인 물은 반드시 버려주세요.</span>
                     </p>
                   </div>
                 </div>
@@ -791,7 +871,10 @@
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button onClick={onBack} className="text-neutral-400 p-1 -ml-1"><ChevronLeft size={24} /></button>
-                  <h2 className="text-lg font-bold text-white">{bean?.name}</h2>
+                  <div>
+                    <h2 className="text-lg font-bold text-white leading-tight">{bean?.name}</h2>
+                    {method === 'drip' && <span className="text-[11px] text-emerald-400 font-bold">{servings}인용 ({13 * servings}g / {200 * servings}ml)</span>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 bg-neutral-800 px-3 py-1 rounded-full text-xs font-mono">
                   <span className="text-amber-400 font-bold">수온 {roast?.temp}</span>
@@ -909,7 +992,7 @@
               </div>
               <div className="flex gap-4 mb-4 text-xs font-medium text-neutral-400">
                 <div className="bg-neutral-800 px-3 py-1.5 rounded-md">누적 에쏘 <span className="text-amber-500 font-bold">{espressoCount}잔</span></div>
-                <div className="bg-neutral-800 px-3 py-1.5 rounded-md">누적 드립 <span className="text-amber-500 font-bold">{dripCount}잔</span></div>
+                <div className="bg-neutral-800 px-3 py-1.5 rounded-md">누적 드립 <span className="text-amber-500 font-bold">{dripCount}회</span></div>
               </div>
               <div className="space-y-4">
                 {filteredHistory.map(log => (
@@ -917,7 +1000,9 @@
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1">
-                          <span className="px-2 py-0.5 bg-neutral-700 text-neutral-300 text-[10px] rounded font-bold uppercase">{log.method === 'espresso' ? '에스프레소' : '드립'}</span>
+                          <span className="px-2 py-0.5 bg-neutral-700 text-neutral-300 text-[10px] rounded font-bold uppercase">
+                            {log.method === 'espresso' ? '에스프레소' : `드립 (${log.servings || 1}인용)`}
+                          </span>
                           {log.taste === 'sour' && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">신맛 감지</span>}
                           {log.taste === 'bitter' && <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">쓴맛 감지</span>}
                           {log.taste === 'good' && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">맛있음</span>}
@@ -941,35 +1026,48 @@
           );
         }
 
-        // 7. 추천값 비교 탭
+        // 7. 추천값 비교 탭 (1인용 / 2인용 구분 표시)
         function RecsTab({ beans, recommendations }) {
           const getDefaults = (roastId) => ROAST_LEVELS.find(r => r.id === roastId) || {};
           return (
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-white mb-1">추천 분쇄도 표</h2>
-              <p className="text-xs text-neutral-400 mb-4">원두별 최초 기본값과, 실제 추출 및 맛 평가로 갱신된 현재 추천값입니다.</p>
+              <p className="text-xs text-neutral-400 mb-4">에스프레소(18g) 및 드립(1인 13g / 2인 26g)별 맞춤 클릭수입니다.</p>
               <div className="space-y-4">
                 {beans.map(bean => {
                   const def = getDefaults(bean.roast);
-                  const renderVal = (m, g, d) => {
-                    const c = recommendations[`${bean.id}_${m}_${g}`];
+                  const renderVal = (m, g, d, srv = 1) => {
+                    const c = recommendations[`${bean.id}_${m}_${g}_${srv}`] || (srv === 1 ? recommendations[`${bean.id}_${m}_${g}`] : null);
                     return c && c !== d ? (
-                      <div className="flex items-center gap-1"><span className="text-neutral-500 line-through text-xs font-mono">{d}</span><ChevronRight size={12} /><span className="text-amber-500 font-bold font-mono text-base">{c}</span></div>
-                    ) : <span className="text-white font-bold font-mono text-base">{d || '-'}</span>;
+                      <div className="flex items-center gap-1"><span className="text-neutral-500 line-through text-xs font-mono">{d}</span><ChevronRight size={12} /><span className="text-amber-500 font-bold font-mono text-sm">{c}</span></div>
+                    ) : <span className="text-white font-bold font-mono text-sm">{d || '-'}</span>;
                   };
 
                   return (
                     <div key={bean.id} className="bg-neutral-800 border border-neutral-700 rounded-xl p-4">
-                      <div className="flex justify-between items-center mb-2">
+                      <div className="flex justify-between items-center mb-3">
                         <h3 className="font-bold text-white text-lg">{bean.name}</h3>
                         <div className="text-right">
                           <span className="text-xs text-amber-500 font-bold">{def.label}</span>
                           <span className="text-[10px] text-neutral-400 block font-mono">수온 {def.temp}</span>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-neutral-900 p-3 rounded-lg"><div className="text-[10px] text-neutral-400 mb-1">에스프레소 (18g)</div><div className="flex justify-between text-xs"><span>A2</span>{renderVal('espresso','a2',def.a2Esp)}</div><div className="flex justify-between text-xs mt-1"><span>M40</span>{renderVal('espresso','m40',def.m40Esp)}</div></div>
-                        <div className="bg-neutral-900 p-3 rounded-lg"><div className="text-[10px] text-neutral-400 mb-1">드립 (스위치 13g)</div><div className="flex justify-between text-xs"><span>A2</span>{renderVal('drip','a2',def.a2Drip)}</div><div className="flex justify-between text-xs mt-1"><span>M40</span>{renderVal('drip','m40',def.m40Drip)}</div></div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-neutral-900 p-2.5 rounded-lg">
+                          <div className="text-[10px] text-neutral-400 mb-1.5 font-bold">에쏘 (18g)</div>
+                          <div className="flex justify-between text-xs"><span>A2</span>{renderVal('espresso','a2',def.a2Esp, 1)}</div>
+                          <div className="flex justify-between text-xs mt-1"><span>M40</span>{renderVal('espresso','m40',def.m40Esp, 1)}</div>
+                        </div>
+                        <div className="bg-neutral-900 p-2.5 rounded-lg">
+                          <div className="text-[10px] text-amber-400 mb-1.5 font-bold">드립 1인 (13g)</div>
+                          <div className="flex justify-between text-xs"><span>A2</span>{renderVal('drip','a2',def.a2Drip, 1)}</div>
+                          <div className="flex justify-between text-xs mt-1"><span>M40</span>{renderVal('drip','m40',def.m40Drip, 1)}</div>
+                        </div>
+                        <div className="bg-neutral-900 p-2.5 rounded-lg">
+                          <div className="text-[10px] text-emerald-400 mb-1.5 font-bold">드립 2인 (26g)</div>
+                          <div className="flex justify-between text-xs"><span>A2</span>{renderVal('drip','a2',def.a2Drip + 4, 2)}</div>
+                          <div className="flex justify-between text-xs mt-1"><span>M40</span>{renderVal('drip','m40',def.m40Drip + 6, 2)}</div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -991,7 +1089,7 @@
           }, [email]);
 
           const handleExportJSON = () => {
-            const data = { beans, history, recommendations, version: '1.4.0', exportedAt: new Date().toISOString() };
+            const data = { beans, history, recommendations, version: '1.5.0', exportedAt: new Date().toISOString() };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
             const downloadAnchor = document.createElement('a');
             downloadAnchor.setAttribute("href", dataStr);
