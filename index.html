@@ -136,12 +136,13 @@
           },
         ];
 
+        // 마트 판매용 블루보틀 실제 로스팅 포인트 반영
         const INITIAL_BEANS = [
           { id: 'b1', name: '폴 바셋 (시그니처)', roast: 'dark' },
-          { id: 'b2', name: '블루보틀 볼드', roast: 'med-dark' },
-          { id: 'b3', name: '블루보틀 에스프레소', roast: 'medium' },
-          { id: 'b4', name: '블루보틀 밸런스', roast: 'med-light' },
-          { id: 'b5', name: '블루보틀 브라이트', roast: 'light' },
+          { id: 'b2', name: '블루보틀 볼드 (마트용)', roast: 'dark' },
+          { id: 'b3', name: '블루보틀 에스프레소 (마트용)', roast: 'dark' },
+          { id: 'b4', name: '블루보틀 밸런스 (마트용)', roast: 'med-dark' },
+          { id: 'b5', name: '블루보틀 브라이트 (마트용)', roast: 'medium' },
         ];
 
         const GRINDERS = [
@@ -149,10 +150,78 @@
           { id: 'm40', name: '미스치프 M40 (RC)' }
         ];
 
+        // 순정 기본 클릭수 계산 헬퍼
+        const getBaseDefaultClick = (bean, mthd, gId, srv = 1) => {
+          if (!bean) return 0;
+          const roastData = ROAST_LEVELS.find(r => r.id === bean.roast) || ROAST_LEVELS[2];
+          if (mthd === 'espresso') {
+            return gId === 'a2' ? roastData.a2Esp : roastData.m40Esp;
+          } else {
+            const baseDrip = gId === 'a2' ? roastData.a2Drip : roastData.m40Drip;
+            const twoCupOffset = srv === 2 ? (gId === 'a2' ? 4 : 6) : 0;
+            return baseDrip + twoCupOffset;
+          }
+        };
+
+        // 스마트 그라인더 기준점 동기화(Smart Calibration) 및 유사 원두 레퍼런스 추론 함수
+        const getSmartRecommendation = (targetBeanId, mthd, gId, srv, beans, recommendations) => {
+          const targetBean = beans.find(b => b.id === targetBeanId);
+          if (!targetBean) return { click: 0, refInfo: null, isDirect: false };
+
+          const directKey = `${targetBeanId}_${mthd}_${gId}_${srv}`;
+          const legacyKey = `${targetBeanId}_${mthd}_${gId}`;
+          const directSaved = recommendations[directKey] !== undefined 
+            ? recommendations[directKey] 
+            : (srv === 1 && recommendations[legacyKey] !== undefined ? recommendations[legacyKey] : undefined);
+
+          const baseDefault = getBaseDefaultClick(targetBean, mthd, gId, srv);
+
+          // 1. 해당 원두의 직접 학습된 데이터가 있는 경우
+          if (directSaved !== undefined) {
+            return { click: directSaved, refInfo: null, isDirect: true };
+          }
+
+          // 2. 직접 데이터가 없다면, 동일 추출방식 & 동일 그라인더에서 학습된 다른 원두들의 개조 오프셋 평균을 계산
+          let offsets = [];
+          let refBeanNames = [];
+
+          beans.forEach(b => {
+            if (b.id === targetBeanId) return;
+            const bKey = `${b.id}_${mthd}_${gId}_${srv}`;
+            const bLegacy = `${b.id}_${mthd}_${gId}`;
+            const bSaved = recommendations[bKey] !== undefined 
+              ? recommendations[bKey] 
+              : (srv === 1 && recommendations[bLegacy] !== undefined ? recommendations[bLegacy] : undefined);
+
+            if (bSaved !== undefined) {
+              const bDefault = getBaseDefaultClick(b, mthd, gId, srv);
+              const diff = bSaved - bDefault; // 예: 순정 32 -> 실제 15 이면 diff = -17
+              offsets.push({ diff, beanName: b.name, savedClick: bSaved, sameRoast: b.roast === targetBean.roast });
+            }
+          });
+
+          if (offsets.length > 0) {
+            // 같은 배전도의 성공 데이터가 있으면 최우선 참조, 없으면 전체 평균 오프셋 적용
+            const sameRoastRef = offsets.find(o => o.sameRoast);
+            const chosenRef = sameRoastRef || offsets[0];
+            const avgOffset = Math.round(offsets.reduce((acc, cur) => acc + cur.diff, 0) / offsets.length);
+            const calibratedClick = Math.max(1, baseDefault + (sameRoastRef ? sameRoastRef.diff : avgOffset));
+
+            return {
+              click: calibratedClick,
+              refInfo: `'${chosenRef.beanName}' 세팅(${chosenRef.savedClick}클릭) 기준 개조 영점 보정됨`,
+              isDirect: false
+            };
+          }
+
+          // 3. 아무 기록도 없는 완전 초기 상태
+          return { click: baseDefault, refInfo: null, isDirect: false };
+        };
+
         // 1인용(13g/200ml) vs 2인용(26g/400ml) 동적 레시피 생성기
         const getDynamicRecipes = (roastId, servings = 1) => {
           const r = ROAST_LEVELS.find(lvl => lvl.id === roastId) || ROAST_LEVELS[2];
-          const mult = servings; // 1 또는 2
+          const mult = servings;
           
           return {
             golden: [
@@ -206,19 +275,6 @@
               { label: "고농도 침출 대기", target: "1분", hint: "1분간 진하게 우려낸 뒤 스위치 OPEN (얼음 위로 급랭!)" },
               { label: "급랭 배수 완료", target: "완료", hint: "얼음 위로 커피가 다 떨어지면 종료" }
             ],
-            hybrid: mult === 1 ? [
-              { label: "1차 투과(향미)", target: "60g", hint: "스위치 열림(OPEN) | 60g 주수로 화사한 향미 추출" },
-              { label: "뜸 대기", target: "35초", hint: "35초 도달 시 스위치 밸브 닫기(CLOSE) 준비" },
-              { label: "스위치 닫기 & 주수", target: "200g", hint: "스위치 닫고(CLOSE) 200g까지 부어 단맛 침출" },
-              { label: "침출 대기", target: "1분 30초", hint: "1분 30초에 스위치를 열어(OPEN) 배수 시작" },
-              { label: "배수 완료", target: "완료", hint: "배수 완료 시 버튼 누르기" }
-            ] : [
-              { label: "1차 투과(향미)", target: "120g", hint: "스위치 열림(OPEN) | 120g까지 투과 주수" },
-              { label: "뜸 대기", target: "40초", hint: "물 빠짐 확인 후 스위치 닫기(CLOSE) 준비" },
-              { label: "스위치 닫고 2차 주수", target: "280g", hint: "스위치 닫고 280g까지 주수 (01드리퍼 넘침 주의!)" },
-              { label: "1차 개방 & 3차 주수", target: "400g", hint: "스위치를 열어 반쯤 배수 후 다시 닫고 400g까지 주수" },
-              { label: "침출 후 배수 완료", target: "완료", hint: "1분 후 스위치 완전 개방, 배수 완료 시 종료" }
-            ],
             immersion: mult === 1 ? [
               { label: "스위치 닫고 전량 주수", target: "200g", hint: "스위치 닫힘(CLOSE) 확인 후 200g 빠르게 주수" },
               { label: "침출 대기", target: r.id === 'dark' ? "1분 45초" : "2분 15초", hint: `단맛 우려내기 (목표: ${r.id === 'dark' ? "1분 45초" : "2분 15초"})` },
@@ -239,7 +295,7 @@
           
           const [beans, setBeans] = React.useState(() => {
             try {
-              const saved = localStorage.getItem('dialin-beans');
+              const saved = localStorage.getItem('dialin-beans-v2');
               return saved ? JSON.parse(saved) : INITIAL_BEANS;
             } catch (e) { return INITIAL_BEANS; }
           });
@@ -257,7 +313,7 @@
           });
 
           React.useEffect(() => { 
-            try { localStorage.setItem('dialin-beans', JSON.stringify(beans)); } catch (e) {} 
+            try { localStorage.setItem('dialin-beans-v2', JSON.stringify(beans)); } catch (e) {} 
           }, [beans]);
           
           React.useEffect(() => { 
@@ -279,7 +335,7 @@
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-amber-500 font-mono font-bold tracking-wider">v1.5.0 Pro</span>
+                    <span className="text-[10px] text-amber-500 font-mono font-bold tracking-wider">v1.7.0 Pro</span>
                     <span className="text-[10px] text-neutral-400">{today}</span>
                   </div>
                   <button 
@@ -348,7 +404,7 @@
         function BrewWizard({ beans, setBeans, recommendations, setRecommendations, onSaveLog }) {
           const [step, setStep] = React.useState(1);
           const [method, setMethod] = React.useState('');
-          const [servings, setServings] = React.useState(1); // 1인용(13g) vs 2인용(26g)
+          const [servings, setServings] = React.useState(1);
           const [beanId, setBeanId] = React.useState('');
           const [grinderId, setGrinderId] = React.useState('');
           const [dripRecipeType, setDripRecipeType] = React.useState('golden');
@@ -356,28 +412,13 @@
           const [time, setTime] = React.useState(0);
           const [adjustedTime, setAdjustedTime] = React.useState(0);
           const [recommendedClick, setRecommendedClick] = React.useState(0);
+          const [refHint, setRefHint] = React.useState(null);
           const [usedClick, setUsedClick] = React.useState(0);
           const [lapTimes, setLapTimes] = React.useState([]);
           const [tasteFeedback, setTasteFeedback] = React.useState('good');
 
           const selectedBean = beans.find(b => b.id === beanId);
           const selectedRoast = ROAST_LEVELS.find(r => r.id === selectedBean?.roast) || ROAST_LEVELS[2];
-
-          const getDefaultClick = (bId, mthd, gId, srv) => {
-            const bean = beans.find(b => b.id === bId);
-            if (!bean) return 0;
-            const roastData = ROAST_LEVELS.find(r => r.id === bean.roast);
-            if (!roastData) return 0;
-            
-            if (mthd === 'espresso') {
-              return gId === 'a2' ? roastData.a2Esp : roastData.m40Esp;
-            } else {
-              // 2인용(26g)은 커피층이 두꺼워 저항이 크므로 기본 +4클릭(A2) / +6클릭(M40) 더 굵게 시작
-              const baseDrip = gId === 'a2' ? roastData.a2Drip : roastData.m40Drip;
-              const twoCupOffset = srv === 2 ? (gId === 'a2' ? 4 : 6) : 0;
-              return baseDrip + twoCupOffset;
-            }
-          };
 
           const handleNextStep = () => {
             if (step === 3 && method === 'espresso') setStep(5);
@@ -389,7 +430,6 @@
             else setStep(s => Math.max(1, s - 1));
           };
 
-          // 1단계: 추출 방식 및 1인/2인용 선택
           if (step === 1) return (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-white mb-4">어떤 커피를 내리실 건가요?</h2>
@@ -431,7 +471,6 @@
             </div>
           );
 
-          // 2단계: 원두 선택
           if (step === 2) return (
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
@@ -462,7 +501,6 @@
             </div>
           );
 
-          // 3단계: 그라인더 선택
           if (step === 3) return (
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4">
@@ -470,29 +508,29 @@
                 <h2 className="text-xl font-bold text-white">그라인더 선택</h2>
               </div>
               <div className="space-y-3">
-                {GRINDERS.map(g => (
-                  <div key={g.id} onClick={() => { 
-                    setGrinderId(g.id); 
-                    const recKey = `${beanId}_${method}_${g.id}_${servings}`;
-                    const legacyKey = `${beanId}_${method}_${g.id}`;
-                    const saved = recommendations[recKey] || (servings === 1 ? recommendations[legacyKey] : null);
-                    setRecommendedClick(saved || getDefaultClick(beanId, method, g.id, servings));
-                    handleNextStep(); 
-                  }} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-amber-500/50">
-                    <div>
-                      <p className="font-semibold text-white text-lg">{g.name}</p>
-                      {method === 'drip' && servings === 2 && (
-                        <p className="text-[11px] text-emerald-400 mt-0.5">2인용(26g) 저항 보정 자동 적용됨</p>
-                      )}
+                {GRINDERS.map(g => {
+                  const smart = getSmartRecommendation(beanId, method, g.id, servings, beans, recommendations);
+                  return (
+                    <div key={g.id} onClick={() => { 
+                      setGrinderId(g.id); 
+                      setRecommendedClick(smart.click);
+                      setRefHint(smart.refInfo);
+                      handleNextStep(); 
+                    }} className="bg-neutral-800 border border-neutral-700 p-4 rounded-xl flex justify-between items-center cursor-pointer hover:border-amber-500/50">
+                      <div>
+                        <p className="font-semibold text-white text-lg">{g.name}</p>
+                        <p className="text-xs text-amber-400 font-mono mt-0.5">
+                          추천 세팅: {smart.click}클릭 {smart.isDirect ? '(직접 학습됨)' : smart.refInfo ? '(개조 오프셋 보정됨)' : ''}
+                        </p>
+                      </div>
+                      <ChevronRight className="text-neutral-500" />
                     </div>
-                    <ChevronRight className="text-neutral-500" />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
 
-          // 4단계: 레시피 선택 (드립일 때만)
           if (step === 4) return (
             <RecipeSelection 
               roast={selectedRoast}
@@ -506,7 +544,6 @@
             />
           );
 
-          // 5단계: 준비 및 타이머 화면
           if (step === 5) return (
             <TimerSection 
               method={method} 
@@ -514,6 +551,7 @@
               roast={selectedRoast}
               bean={selectedBean}
               recommendedClick={recommendedClick} 
+              refHint={refHint}
               dripTargets={dripTargets} 
               onBack={handlePrevStep} 
               onComplete={(finalTime, finalClick, finalLaps) => { 
@@ -526,7 +564,6 @@
             />
           );
 
-          // 6단계: 시간 조정 및 원터치 맛 평가
           if (step === 6) {
             const handleEvaluateAndSave = () => {
               let evalResult = {};
@@ -555,7 +592,6 @@
                 }
               } else {
                 const finalDrawdown = adjustedTime - (lapTimes.length > 0 ? lapTimes[lapTimes.length - 1].time : 0);
-                // 2인용(400ml)은 물 양이 많아 배수 기준 시간이 1인용보다 10초가량 길게 잡힘
                 const minDraw = servings === 2 ? 25 : 20;
                 const maxDraw = servings === 2 ? 65 : 55;
 
@@ -580,6 +616,7 @@
                 nextClick += clickDelta;
               }
 
+              nextClick = Math.max(1, nextClick);
               const recKey = `${beanId}_${method}_${grinderId}_${servings}`;
               setRecommendations(prev => ({ ...prev, [recKey]: nextClick }));
               
@@ -814,7 +851,7 @@
           return null;
         };
 
-        function TimerSection({ method, servings, roast, bean, recommendedClick, dripTargets, onBack, onComplete }) {
+        function TimerSection({ method, servings, roast, bean, recommendedClick, refHint, dripTargets, onBack, onComplete }) {
           const [isRunning, setIsRunning] = React.useState(false);
           const [preStartCountdown, setPreStartCountdown] = React.useState(null);
           const [time, setTime] = React.useState(0);
@@ -946,19 +983,24 @@
                 </div>
               </div>
               
-              <div className="bg-neutral-800 border border-neutral-700 p-4 rounded-2xl">
+              <div className="bg-neutral-800 border border-neutral-700 p-4 rounded-2xl space-y-2">
                 <div className="flex justify-between items-center">
                   <div className="text-center px-4"><p className="text-[11px] text-neutral-400">추천 클릭</p><span className="text-2xl font-bold text-neutral-500">{recommendedClick}</span></div>
                   <div className="w-px h-10 bg-neutral-700"></div>
                   <div className="text-center flex flex-col items-center">
                     <p className="text-[11px] text-amber-500 font-bold mb-1">적용할 클릭 (미세조정)</p>
                     <div className="flex items-center gap-4">
-                      <button onClick={() => setCurrentClick(c => c - 1)} className="text-neutral-400 active:scale-90"><MinusCircle size={26} /></button>
+                      <button onClick={() => setCurrentClick(c => Math.max(1, c - 1))} className="text-neutral-400 active:scale-90"><MinusCircle size={26} /></button>
                       <span className="text-3xl font-black text-amber-500 w-12 text-center">{currentClick}</span>
                       <button onClick={() => setCurrentClick(c => c + 1)} className="text-neutral-400 active:scale-90"><PlusCircle size={26} /></button>
                     </div>
                   </div>
                 </div>
+                {refHint && (
+                  <div className="bg-amber-950/50 border border-amber-800/60 px-3 py-1.5 rounded-lg text-[11px] text-amber-300 text-center">
+                    💡 {refHint}
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 flex flex-col items-center justify-center py-1">
@@ -1091,21 +1133,29 @@
           );
         }
 
-        // 7. 추천값 비교 탭 (1인용 / 2인용 구분 표시)
+        // 7. 추천값 비교 탭 (개조 영점 자동 보정 반영)
         function RecsTab({ beans, recommendations }) {
           const getDefaults = (roastId) => ROAST_LEVELS.find(r => r.id === roastId) || {};
           return (
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-white mb-1">추천 분쇄도 표</h2>
-              <p className="text-xs text-neutral-400 mb-4">에스프레소(18g) 및 드립(1인 13g / 2인 26g)별 맞춤 클릭수입니다.</p>
+              <p className="text-xs text-neutral-400 mb-4">한 원두의 영점을 잡으면 나머지 원두들의 추천값도 내 그라인더 세팅에 맞춰 자동 보정됩니다.</p>
               <div className="space-y-4">
                 {beans.map(bean => {
                   const def = getDefaults(bean.roast);
                   const renderVal = (m, g, d, srv = 1) => {
-                    const c = recommendations[`${bean.id}_${m}_${g}_${srv}`] || (srv === 1 ? recommendations[`${bean.id}_${m}_${g}`] : null);
-                    return c && c !== d ? (
-                      <div className="flex items-center gap-1"><span className="text-neutral-500 line-through text-xs font-mono">{d}</span><ChevronRight size={12} /><span className="text-amber-500 font-bold font-mono text-sm">{c}</span></div>
-                    ) : <span className="text-white font-bold font-mono text-sm">{d || '-'}</span>;
+                    const smart = getSmartRecommendation(bean.id, m, g, srv, beans, recommendations);
+                    const c = smart.click;
+                    if (c !== d) {
+                      return (
+                        <div className="flex items-center gap-1">
+                          <span className="text-neutral-500 line-through text-xs font-mono">{d}</span>
+                          <ChevronRight size={12} />
+                          <span className={`${smart.isDirect ? 'text-amber-500' : 'text-emerald-400'} font-bold font-mono text-sm`}>{c}</span>
+                        </div>
+                      );
+                    }
+                    return <span className="text-white font-bold font-mono text-sm">{d || '-'}</span>;
                   };
 
                   return (
@@ -1138,6 +1188,10 @@
                   );
                 })}
               </div>
+              <div className="text-[11px] text-neutral-400 flex gap-4 justify-end px-1">
+                <span><span className="text-amber-500 font-bold">●</span> 직접 학습된 값</span>
+                <span><span className="text-emerald-400 font-bold">●</span> 개조 영점 자동 보정값</span>
+              </div>
             </div>
           );
         }
@@ -1154,7 +1208,7 @@
           }, [email]);
 
           const handleExportJSON = () => {
-            const data = { beans, history, recommendations, version: '1.5.0', exportedAt: new Date().toISOString() };
+            const data = { beans, history, recommendations, version: '1.7.0', exportedAt: new Date().toISOString() };
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
             const downloadAnchor = document.createElement('a');
             downloadAnchor.setAttribute("href", dataStr);
